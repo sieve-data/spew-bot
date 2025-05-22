@@ -2,7 +2,7 @@ import sieve
 from openai import OpenAI
 
 @sieve.function(
-    name="oracle_script_generator",
+    name="spew_script_generator",
     python_packages=["openai"],
     environment_variables=[
         sieve.Env(name="OPENAI_API_KEY")
