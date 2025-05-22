@@ -2,12 +2,16 @@ import os
 from dotenv import load_dotenv
 from flask import Flask, jsonify
 from flask_cors import CORS
+from routes import personas_bp
 
 app = Flask(__name__, static_folder='static', static_url_path='/static')
 CORS(app)  # Enable CORS for all routes
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Register blueprints
+app.register_blueprint(personas_bp)
 
 @app.route('/')
 def home():
