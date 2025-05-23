@@ -39,7 +39,7 @@ class VisualSegment(BaseModel):
 class VisualPlan(BaseModel):
     segments: List[VisualSegment]
 
-def _generate_animation_code(description: str, duration: float, llm_provider: str = "claude", llm_model: str = "claude-3-7-sonnet-latest") -> Optional[str]:
+def _generate_animation_code(description: str, duration: float, llm_provider: str = "claude", llm_model: str = "claude-3-5-sonnet-20241022") -> Optional[str]:
     """
     Generate Matplotlib animation code using LLM based on the description and duration.
     
@@ -136,7 +136,7 @@ def _generate_animation_code(description: str, duration: float, llm_provider: st
         print(f"  ❌ Error generating animation code: {e}")
         return None
 
-def _fix_animation_code(original_code: str, error_message: str, original_description: str, duration: float, llm_provider: str = "claude", llm_model: str = "claude-3-7-sonnet-latest") -> Optional[str]:
+def _fix_animation_code(original_code: str, error_message: str, original_description: str, duration: float, llm_provider: str = "claude", llm_model: str = "claude-3-5-sonnet-20241022") -> Optional[str]:
     print(f"  🔧 Fixing animation code with {llm_provider}/{llm_model}...")
     
     system_prompt = """You are an expert Python developer and Matplotlib animation specialist. You excel at debugging code, identifying root causes of errors, and creating production-ready fixes. You always provide complete, working solutions."""
@@ -413,7 +413,7 @@ def _create_matplotlib_animation(description: str, duration: float, segment_id: 
     # Configuration
     max_attempts = 3
     llm_provider = "claude"
-    llm_model = "claude-3-7-sonnet-latest"
+    llm_model = "claude-3-5-sonnet-20241022"
     
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
