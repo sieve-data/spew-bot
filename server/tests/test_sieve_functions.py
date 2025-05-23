@@ -136,13 +136,26 @@ class TestSpewPipeline(unittest.TestCase):
         """Generate lip-synced video using the lipsync processor function"""
         lipsync_processor = sieve.function.get("sieve-internal/spew_lipsync_processor")
         
-        # Reconstruct personas data for the function
-        personas_data = {"personas": list(self.personas.values())}
+        # Get the video path for this persona
+        persona = self.personas[persona_id]
+        video_path_str = persona.get("video_path")
+        
+        if not video_path_str:
+            raise ValueError(f"No video_path found for persona {persona_id}")
+
+        # Construct the absolute path to the video file
+        # Assuming PROJECT_ROOT is defined in your setUp or class level
+        absolute_video_path = PROJECT_ROOT / "server" / video_path_str
+
+        # Create a sieve.File object from the local video path
+        # This will upload the file if it's not already in Sieve storage
+        # or reference it if it's already known to Sieve via its path.
+        input_video_file = sieve.File(path=str(absolute_video_path))
         
         return lipsync_processor.run(
             persona_id=persona_id,
             generated_audio=audio_file,
-            personas_data=personas_data
+            base_video_file=input_video_file # Pass the sieve.File object
         )
     
     def _verify_video_result(self, result: sieve.File):
