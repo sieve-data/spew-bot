@@ -136,6 +136,8 @@ class TestSpewPipeline(unittest.TestCase):
             preview = transcription['text'][:100]
         elif isinstance(transcription, list) and transcription:
             preview = str(transcription[0])[:100]
+
+        preview = transcription
             
         if preview:
             print(f"🗣️  Transcription preview: {preview}...")
@@ -157,6 +159,26 @@ class TestSpewPipeline(unittest.TestCase):
         
         print("✅ Visuals generation completed")
         print(f"🖼️ Visuals video file: {result}")
+        
+        # Download the file to get local access
+        try:
+            # Download the file - this will save it to a local temp location
+            local_path = result.download()
+            print(f"📁 Downloaded video to: {local_path}")
+            print(f"🎬 You can watch the video at: {os.path.abspath(local_path)}")
+            
+            # Verify the file exists and has content
+            if os.path.exists(local_path):
+                file_size = os.path.getsize(local_path)
+                print(f"📊 Video file size: {file_size} bytes ({file_size / (1024*1024):.2f} MB)")
+            else:
+                print("⚠️ Warning: Downloaded file path does not exist")
+                
+        except Exception as e:
+            print(f"❌ Error downloading video file: {e}")
+            # Fallback: try to get the path directly if it's a local file
+            if hasattr(result, 'path') and result.path:
+                print(f"🎬 Video path (not downloaded): {result.path}")
     
     def _process_lipsync(self, persona_id: str, audio_file: sieve.File) -> sieve.File:
         """Generate lip-synced video using the lipsync processor function"""
