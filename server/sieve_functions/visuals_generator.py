@@ -61,12 +61,21 @@ def _generate_animation_code(description: str, duration: float, llm_provider: st
 
         The animation should be approximately {duration} seconds long.
 
+        AVAILABLE LIBRARIES (use ONLY these in addition to the standard libraries):
+        - matplotlib.pyplot as plt
+        - matplotlib.animation (FuncAnimation, etc.)
+        - numpy as np
+        - scipy (all submodules: scipy.special, scipy.integrate, scipy.optimize, etc.)
+        - sympy (for symbolic math)
+        - seaborn as sns (for statistical plots)
+
         CRITICAL REQUIREMENTS:
         1. Use matplotlib.animation.FuncAnimation for the animation
-        2. Include ALL necessary imports (matplotlib.pyplot, matplotlib.animation, numpy, etc.)
-        3. Set the animation to run for exactly {duration} seconds (fps = 30, so frames = {int(duration * 30)})
-        4. Use anim.save('animation.mp4', writer='pillow', fps=30) to save the file (NOT ffmpeg - use pillow writer)
-        5. IMPORTANT: Add automatic writer detection at the end of your code:
+        2. Include ALL necessary imports from the AVAILABLE LIBRARIES list above
+        3. DO NOT import any libraries not listed above
+        4. Set the animation to run for exactly {duration} seconds (fps = 30, so frames = {int(duration * 30)})
+        5. Use anim.save('animation.mp4', writer='pillow', fps=30) to save the file (NOT ffmpeg - use pillow writer)
+        6. IMPORTANT: Add automatic writer detection at the end of your code:
            ```python
            # Try to save with the best available writer
            try:
@@ -77,17 +86,17 @@ def _generate_animation_code(description: str, duration: float, llm_provider: st
                except:
                    anim.save('animation.mp4', writer='imagemagick', fps=30)
            ```
-        6. The code MUST be complete and self-contained - no external dependencies beyond standard libraries
-        7. Include clear, descriptive comments explaining the animation logic
-        8. Use plt.style.use('dark_background') for a clean dark theme
-        9. Make text readable with appropriate font sizes (minimum 14pt)
-        10. For mathematical expressions, use LaTeX formatting with plt.text() and r'$...$' syntax
-        11. The code should NOT use plt.show() - it MUST save to a file
-        12. Avoid deprecated Matplotlib features
-        13. Use figsize=(10, 8) for good video dimensions
-        14. Set up proper axis limits and remove unnecessary axes/ticks for clean visuals
-        15. Use smooth, continuous animations with proper easing
-        16. Ensure colors are vibrant and contrasting against the dark background
+        7. The code MUST be complete and self-contained - no external dependencies beyond the AVAILABLE LIBRARIES
+        8. Include clear, descriptive comments explaining the animation logic
+        9. Use plt.style.use('dark_background') for a clean dark theme
+        10. Make text readable with appropriate font sizes (minimum 14pt)
+        11. For mathematical expressions, use LaTeX formatting with plt.text() and r'$...$' syntax
+        12. The code should NOT use plt.show() - it MUST save to a file
+        13. Avoid deprecated Matplotlib features
+        14. Use figsize=(10, 8) for good video dimensions
+        15. Set up proper axis limits and remove unnecessary axes/ticks for clean visuals
+        16. Use smooth, continuous animations with proper easing
+        17. Ensure colors are vibrant and contrasting against the dark background
 
         ANIMATION CONCEPT:
         {description}
@@ -140,6 +149,14 @@ def _fix_animation_code(original_code: str, error_message: str, original_descrip
 
         TARGET DURATION: {duration} seconds (fps=30, total frames={int(duration * 30)})
 
+        AVAILABLE LIBRARIES (use ONLY these in addition to the standard libraries):
+        - matplotlib.pyplot as plt
+        - matplotlib.animation (FuncAnimation, etc.)
+        - numpy as np
+        - scipy (all submodules: scipy.special, scipy.integrate, scipy.optimize, etc.)
+        - sympy (for symbolic math)
+        - seaborn as sns (for statistical plots)
+
         FAILED CODE:
         ```python
         {original_code}
@@ -157,7 +174,8 @@ def _fix_animation_code(original_code: str, error_message: str, original_descrip
         CRITICAL REQUIREMENTS FOR THE FIX:
         - Animation must be exactly {duration} seconds long (fps=30)
         - Use anim.save('animation.mp4', writer='pillow', fps=30) to save
-        - Include ALL necessary imports (matplotlib.pyplot, matplotlib.animation, numpy, etc.)
+        - Include ALL necessary imports from the AVAILABLE LIBRARIES list above
+        - DO NOT import any libraries not listed in AVAILABLE LIBRARIES
         - Use plt.style.use('dark_background') for consistent styling
         - NO plt.show() - only save to file
         - Ensure all mathematical operations are safe (no division by zero, etc.)
@@ -173,7 +191,7 @@ def _fix_animation_code(original_code: str, error_message: str, original_descrip
         - Smooth animations with proper easing
 
         IMPORTANT: If the original approach was fundamentally flawed, completely rewrite the code rather than patching. Focus on creating robust, error-free code that will definitely work.
-        IMPORTANT: DO NOT TRY TO INSTALL ANY NEW LIBRARIES, JUST FIX THE CODE THAT WE HAVE NOW.
+        IMPORTANT: DO NOT TRY TO INSTALL ANY NEW LIBRARIES, JUST FIX THE CODE USING ONLY THE AVAILABLE LIBRARIES.
 
         Provide ONLY the complete, fixed Python code with no explanations or markdown formatting.
         """
@@ -825,7 +843,10 @@ def _assemble_visual_segments(segments_data: list, output_dir: str, final_filena
         "numpy",
         "Pillow",
         "matplotlib",
-        "moviepy"
+        "moviepy",
+        "scipy",
+        "sympy",
+        "seaborn"
     ],
     system_packages=["ffmpeg"],
     environment_variables=[

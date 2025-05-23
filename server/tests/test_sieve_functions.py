@@ -160,10 +160,10 @@ class TestSpewPipeline(unittest.TestCase):
         print("✅ Visuals generation completed")
         print(f"🖼️ Visuals video file: {result}")
         
-        # Download the file to get local access
+        # Download the file to get local access using the .path property
         try:
-            # Download the file - this will save it to a local temp location
-            local_path = result.download()
+            # Use .path property - this will download the file if needed and return the local path
+            local_path = result.path
             print(f"📁 Downloaded video to: {local_path}")
             print(f"🎬 You can watch the video at: {os.path.abspath(local_path)}")
             
@@ -175,10 +175,10 @@ class TestSpewPipeline(unittest.TestCase):
                 print("⚠️ Warning: Downloaded file path does not exist")
                 
         except Exception as e:
-            print(f"❌ Error downloading video file: {e}")
+            print(f"❌ Error accessing video file: {e}")
             # Fallback: try to get the path directly if it's a local file
             if hasattr(result, 'path') and result.path:
-                print(f"🎬 Video path (not downloaded): {result.path}")
+                print(f"🎬 Video path (fallback): {result.path}")
     
     def _process_lipsync(self, persona_id: str, audio_file: sieve.File) -> sieve.File:
         """Generate lip-synced video using the lipsync processor function"""
