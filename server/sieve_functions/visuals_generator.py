@@ -251,6 +251,8 @@ def _create_visual_plan(transcription: dict) -> VisualPlan:
         Use animations specifically for visualizing mathematical concepts, such as illustrating the area under a curve for integration. Keep these animations simple and flat, emphasizing clarity and understanding over complexity.
         Aim for more animations than images.
         Please ensure that your designs are clear, simple, and help convey mathematical ideas without unnecessary complexity. Our goal is to make the concepts accessible and easy to understand.
+
+        The first segment should **always** be an animation.
         """
 
     try:
