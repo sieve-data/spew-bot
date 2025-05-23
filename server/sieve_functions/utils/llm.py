@@ -74,20 +74,19 @@ def _call_claude(
     client = Anthropic(api_key=api_key)
     current_model = model if model else DEFAULT_CLAUDE_MODEL
 
-    # messages_claude = []
-    # main_prompt_claude = prompt
-    # if system_prompt:
-    #      messages_claude.append({"role": "user", "content": system_prompt})
-    #      messages_claude.append({"role": "assistant", "content": "Understood."})
-    # messages_claude.append({"role": "user", "content": main_prompt_claude})
-
     try:
-        response = client.messages.create(
-            model=current_model,
-            max_tokens=max_tokens,
-            system=system_prompt if system_prompt else None,
-            messages=[{"role": "user", "content": prompt}]
-        )
+        # Build the request parameters
+        request_params = {
+            "model": current_model,
+            "max_tokens": max_tokens,
+            "messages": [{"role": "user", "content": prompt}]
+        }
+        
+        # Only add system parameter if system_prompt is provided
+        if system_prompt:
+            request_params["system"] = system_prompt
+            
+        response = client.messages.create(**request_params)
         return response.content[0].text
     except Exception as e:
         print(f"Error calling Anthropic API: {e}")
