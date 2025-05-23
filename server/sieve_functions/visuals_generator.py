@@ -241,6 +241,11 @@ def _create_visual_plan(transcription: dict) -> VisualPlan:
 
         Specify exact start_time and end_time for each visual and provide a clear, detailed description of what to display.
 
+        CRITICAL: Ensure that segments are in chronological order and do not overlap. Each segment should have:
+        - start_time that is >= the previous segment's end_time
+        - end_time that is > start_time
+        - Logical temporal progression that matches the transcript
+
         It's crucial to remember that a person will already be narrating the content. Your task is to create a secondary, simple presentation next to them. Focus on illustrating on-paper concepts or topics suitable for 2D animations in the style of 3Blue1Brown.
         For example, use static images for straightforward visual references like, "Hey, look at this pool. Let's calculate the area of this pool." These should be simple and direct.
         Use animations specifically for visualizing mathematical concepts, such as illustrating the area under a curve for integration. Keep these animations simple and flat, emphasizing clarity and understanding over complexity.
@@ -258,7 +263,18 @@ def _create_visual_plan(transcription: dict) -> VisualPlan:
             model="gpt-4o" # Or your preferred model that supports structured output, like o3-mini if it does
         )
 
-        print(f"  ✅ Visual plan created: {visual_plan_response}")
+        # Ensure segments are sorted by start_time (defensive programming)
+        if visual_plan_response and visual_plan_response.segments:
+            visual_plan_response.segments = sorted(
+                visual_plan_response.segments, 
+                key=lambda x: x.start_time
+            )
+            
+            print(f"  ✅ Visual plan created with {len(visual_plan_response.segments)} segments:")
+            for i, segment in enumerate(visual_plan_response.segments):
+                print(f"    📍 Segment {i+1}: {segment.start_time:.1f}s-{segment.end_time:.1f}s ({segment.type}) - {segment.description[:50]}...")
+        else:
+            print(f"  ✅ Visual plan created: {visual_plan_response}")
             
         return visual_plan_response
 
@@ -732,12 +748,18 @@ def _assemble_visual_segments(segments_data: list, output_dir: str, final_filena
         # Ensure segments are sorted by start_time (should already be sorted from visual plan)
         segments_data_sorted = sorted(segments_data, key=lambda x: x['start_time'])
         
+        print(f"  🔄 Segment order verification:")
+        for i, segment_info in enumerate(segments_data_sorted):
+            print(f"    📍 Segment {i+1}: {segment_info['start_time']:.1f}s-{segment_info['end_time']:.1f}s ({segment_info['segment_id']})")
+        
         # Iterate through each segment
         for i, segment_info in enumerate(segments_data_sorted):
             segment_path = segment_info['path']
             expected_duration = segment_info['duration']
+            segment_id = segment_info.get('segment_id', f'segment_{i}')
             
             print(f"  📹 Loading segment {i+1}/{len(segments_data_sorted)}: {os.path.basename(segment_path)}")
+            print(f"    ⏱️  Expected timing: {segment_info['start_time']:.1f}s-{segment_info['end_time']:.1f}s")
             
             # Check if segment file exists
             if not os.path.exists(segment_path):
@@ -756,6 +778,7 @@ def _assemble_visual_segments(segments_data: list, output_dir: str, final_filena
                 
                 # Log clip information
                 print(f"    ✅ Loaded: {clip.duration:.2f}s (expected: {expected_duration:.2f}s)")
+                print(f"    📐 Dimensions: {clip.w}x{clip.h}")
                 
                 # Add to clips list
                 clips.append(clip)
@@ -771,6 +794,7 @@ def _assemble_visual_segments(segments_data: list, output_dir: str, final_filena
             return None
         
         print(f"  🔗 Concatenating {len(clips)} clips (total duration: {current_timeline_end:.2f}s)...")
+        print(f"  📋 Assembly order: {' → '.join([f'Segment{i+1}' for i in range(len(clips))])}")
         
         # Concatenate all clips using compose method
         final_clip = concatenate_videoclips(clips, method="compose")
