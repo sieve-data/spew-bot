@@ -109,3 +109,42 @@ def call_llm(
         return _call_claude(prompt, model, max_tokens, system_prompt)
     else:
         raise ValueError(f"Unsupported LLM provider: {provider}. Supported providers are 'gpt' and 'claude'.")
+
+def generate_image(
+    prompt: str,
+    model: str = "dall-e-3",
+    size: str = "1024x1024",
+    quality: str = "standard"
+) -> str:
+    """
+    Generate an image using DALL-E and return the image URL.
+    
+    Args:
+        prompt: Description of the image to generate
+        model: DALL-E model to use (dall-e-2 or dall-e-3)
+        size: Image size (1024x1024, 1024x1792, 1792x1024 for dall-e-3)
+        quality: Image quality (standard or hd for dall-e-3)
+    
+    Returns:
+        str: URL of the generated image
+    """
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY environment variable not set.")
+    
+    client = OpenAI(api_key=api_key)
+    
+    try:
+        response = client.images.generate(
+            model=model,
+            prompt=prompt,
+            n=1,
+            size=size,
+            quality=quality if model == "dall-e-3" else None
+        )
+        
+        return response.data[0].url
+    
+    except Exception as e:
+        print(f"Error generating image: {e}")
+        raise

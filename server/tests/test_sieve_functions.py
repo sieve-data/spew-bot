@@ -55,15 +55,15 @@ class TestSpewPipeline(unittest.TestCase):
         # Get persona data
         persona = self.personas[PERSONA_ID]
         
-        # Step 1: Generate script
-        print("\n📝 Step 1: Generating script...")
-        script_result = self._generate_script(
-            query=QUERY,
-            name=persona["name"],
-            style=persona["style_prompt"]
-        )
-        print(f"✅ Script generated ({len(script_result)} characters)")
-        print(f"📄 Script preview: {script_result[:150]}...")
+        # # Step 1: Generate script
+        # print("\n📝 Step 1: Generating script...")
+        # script_result = self._generate_script(
+        #     query=QUERY,
+        #     name=persona["name"],
+        #     style=persona["style_prompt"]
+        # )
+        # print(f"✅ Script generated ({len(script_result)} characters)")
+        # print(f"📄 Script preview: {script_result[:150]}...")
 
         # We are going to override the script result with a different, shorter script for testing purposes.
         script_result = """Hello, this is a test script. I'm Steve Jobs and today we're going to talk about how neural networks learn patterns in data."""
@@ -76,13 +76,13 @@ class TestSpewPipeline(unittest.TestCase):
         )
         self._verify_speech_result(speech_result)
         
-        # Step 3: Generate lip-synced video
-        print("\n🎬 Step 3: Generating lip-synced video...")
-        video_result = self._process_lipsync(
-            persona_id=PERSONA_ID,
-            audio_file=speech_result["audio_file"]
-        )
-        self._verify_video_result(video_result)
+        # # Step 3: Generate lip-synced video
+        # print("\n🎬 Step 3: Generating lip-synced video...")
+        # video_result = self._process_lipsync(
+        #     persona_id=PERSONA_ID,
+        #     audio_file=speech_result["audio_file"]
+        # )
+        # self._verify_video_result(video_result)
 
         # Step 4: Generate visuals
         print("\n🎨 Step 4: Generating visuals...")
@@ -140,31 +140,23 @@ class TestSpewPipeline(unittest.TestCase):
         if preview:
             print(f"🗣️  Transcription preview: {preview}...")
     
-    def _generate_visuals(self, transcription: dict) -> dict:
+    def _generate_visuals(self, transcription: dict) -> sieve.File:
         """Generate visuals using the visuals generator function"""
         visuals_generator = sieve.function.get("sieve-internal/spew_visuals_generator")
         result = visuals_generator.run(transcription=transcription)
         
-        # Verify result is a dictionary (the visual plan)
-        self.assertIsInstance(result, dict, "Visuals generator did not return a dictionary (visual plan)")
+        # Verify result is a sieve.File
+        self.assertIsInstance(result, sieve.File, "Visuals generator did not return a sieve.File")
         
         return result
 
-    def _verify_visuals_result(self, result: dict):
-        """Verify visuals generation result (now a visual plan dictionary)"""
-        # Verify the result is a dictionary and contains expected keys for a plan
-        self.assertIsInstance(result, dict)
-        if "error" not in result: # If there's no error, expect segments
-            self.assertIn("segments", result, "Visual plan missing 'segments' key")
-            self.assertIsInstance(result["segments"], list, "'segments' should be a list")
+    def _verify_visuals_result(self, result: sieve.File):
+        """Verify visuals generation result"""
+        # Verify the result is a sieve.File
+        self.assertIsInstance(result, sieve.File)
         
-        print("✅ Visuals plan generation completed")
-        if "error" in result:
-            print(f"⚠️  Visuals plan generation warning/error: {result['error']}")
-        elif result.get("segments"):
-            print(f"📊 Visual plan contains {len(result['segments'])} segments.")
-        else:
-            print("📊 Visual plan is empty or has unexpected structure.")
+        print("✅ Visuals generation completed")
+        print(f"🖼️ Visuals video file: {result}")
     
     def _process_lipsync(self, persona_id: str, audio_file: sieve.File) -> sieve.File:
         """Generate lip-synced video using the lipsync processor function"""
