@@ -39,7 +39,7 @@ class VisualSegment(BaseModel):
 class VisualPlan(BaseModel):
     segments: List[VisualSegment]
 
-def _generate_animation_code(description: str, duration: float, llm_provider: str = "claude", llm_model: str = "claude-3-5-sonnet-20241022") -> Optional[str]:
+def _generate_animation_code(description: str, duration: float, llm_provider: str = "claude", llm_model: str = "claude-3-7-sonnet-latest") -> Optional[str]:
     """
     Generate Matplotlib animation code using LLM based on the description and duration.
     
@@ -93,7 +93,7 @@ def _generate_animation_code(description: str, duration: float, llm_provider: st
         11. For mathematical expressions, use LaTeX formatting with plt.text() and r'$...$' syntax
         12. The code should NOT use plt.show() - it MUST save to a file
         13. Avoid deprecated Matplotlib features
-        14. Use figsize=(10, 8) for good video dimensions
+        14. Use figsize=(10.8, 10.8) for mobile-friendly square video dimensions (1080x1080)
         15. Set up proper axis limits and remove unnecessary axes/ticks for clean visuals
         16. Use smooth, continuous animations with proper easing
         17. Ensure colors are vibrant and contrasting against the dark background
@@ -136,7 +136,7 @@ def _generate_animation_code(description: str, duration: float, llm_provider: st
         print(f"  ❌ Error generating animation code: {e}")
         return None
 
-def _fix_animation_code(original_code: str, error_message: str, original_description: str, duration: float, llm_provider: str = "claude", llm_model: str = "claude-3-5-sonnet-20241022") -> Optional[str]:
+def _fix_animation_code(original_code: str, error_message: str, original_description: str, duration: float, llm_provider: str = "claude", llm_model: str = "claude-3-7-sonnet-latest") -> Optional[str]:
     print(f"  🔧 Fixing animation code with {llm_provider}/{llm_model}...")
     
     system_prompt = """You are an expert Python developer and Matplotlib animation specialist. You excel at debugging code, identifying root causes of errors, and creating production-ready fixes. You always provide complete, working solutions."""
@@ -180,7 +180,7 @@ def _fix_animation_code(original_code: str, error_message: str, original_descrip
         - NO plt.show() - only save to file
         - Ensure all mathematical operations are safe (no division by zero, etc.)
         - Handle edge cases and potential runtime errors
-        - Use figsize=(10, 8) for proper video dimensions
+        - Use figsize=(10.8, 10.8) for mobile-friendly square video dimensions (1080x1080)
         - Code must be complete and self-contained
 
         STYLE REQUIREMENTS:
@@ -322,8 +322,8 @@ def create_static_image(description: str, duration: float, segment_id: str, outp
             # Convert to PIL Image
             img = Image.open(io.BytesIO(response.content))
             
-            # Ensure consistent size (1024x1024)
-            img = img.resize((1024, 1024), Image.Resampling.LANCZOS)
+            # Ensure consistent mobile-friendly size (1080x1080)
+            img = img.resize((1080, 1080), Image.Resampling.LANCZOS)
             
             # Convert to numpy array and then to BGR for OpenCV
             img_array = np.array(img)
@@ -347,7 +347,7 @@ def create_static_image(description: str, duration: float, segment_id: str, outp
         
         # Initialize video writer
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        video_writer = cv2.VideoWriter(video_path, fourcc, fps, (1024, 1024))
+        video_writer = cv2.VideoWriter(video_path, fourcc, fps, (1080, 1080))
         
         print(f"    Writing {total_frames} frames ({frames_per_image} per image)...")
         
@@ -384,9 +384,9 @@ def _create_placeholder_video(temp_dir: str, filename: str, duration: float = 3.
     """
     video_path = os.path.join(temp_dir, filename)
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    video_writer = cv2.VideoWriter(video_path, fourcc, 30, (1024, 1024))
+    video_writer = cv2.VideoWriter(video_path, fourcc, 30, (1080, 1080))
     
-    frame = np.full((1024, 1024, 3), color, dtype=np.uint8)
+    frame = np.full((1080, 1080, 3), color, dtype=np.uint8)
     total_frames = int(30 * duration)
     
     for _ in range(total_frames):
@@ -394,16 +394,6 @@ def _create_placeholder_video(temp_dir: str, filename: str, duration: float = 3.
     
     video_writer.release()
     return video_path
-
-def _create_animation_placeholder(temp_dir: str, segment_id: str, duration: float) -> str:
-    """Create a placeholder video for animation segments."""
-    print(f"  ⏩ Creating animation placeholder: {segment_id}")
-    return _create_placeholder_video(
-        temp_dir, 
-        f"{segment_id}_placeholder.mp4", 
-        duration, 
-        (0, 100, 200)  # Orange color
-    )
 
 def _create_matplotlib_animation(description: str, duration: float, segment_id: str, output_dir: str) -> Optional[str]:
     """
@@ -423,7 +413,7 @@ def _create_matplotlib_animation(description: str, duration: float, segment_id: 
     # Configuration
     max_attempts = 3
     llm_provider = "claude"
-    llm_model = "claude-3-5-sonnet-20241022"
+    llm_model = "claude-3-7-sonnet-latest"
     
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
@@ -702,17 +692,37 @@ def _create_visual_segments(visual_plan: VisualPlan, temp_dir: str) -> list:
                     })
                     print(f"  ✅ Successfully created animation segment: {segment_id}")
                 else:
-                    print(f"  ❌ Failed to create animation segment: {segment_id}. Creating placeholder.")
-                    # Create a specific "animation_failed" placeholder
-                    placeholder_path = _create_placeholder_video(temp_dir, f"{segment_id}_anim_fail.mp4", duration, (255, 165, 0))  # Orange for anim fail
-                    segment_data_list.append({
-                        'path': placeholder_path,
-                        'start_time': segment.start_time,
-                        'end_time': segment.end_time,
-                        'duration': duration,
-                        'type': 'animation_placeholder',
-                        'segment_id': segment_id
-                    })
+                    print(f"  ❌ Failed to create animation segment: {segment_id}. Falling back to static image generation.")
+                    # Fallback to static image generation instead of placeholder
+                    fallback_video_path = create_static_image(
+                        description=segment.description,
+                        duration=duration,
+                        segment_id=f"{segment_id}_fallback",
+                        output_dir=temp_dir
+                    )
+                    
+                    if fallback_video_path and os.path.exists(fallback_video_path):
+                        segment_data_list.append({
+                            'path': fallback_video_path,
+                            'start_time': segment.start_time,
+                            'end_time': segment.end_time,
+                            'duration': duration,
+                            'type': 'image',
+                            'segment_id': segment_id
+                        })
+                        print(f"  ✅ Successfully created fallback image segment: {segment_id}")
+                    else:
+                        print(f"  ❌ Fallback image generation also failed for {segment_id}. Creating placeholder.")
+                        # Only create placeholder if both animation and image generation fail
+                        placeholder_path = _create_placeholder_video(temp_dir, f"{segment_id}_total_fail.mp4", duration, (255, 165, 0))  # Orange for total fail
+                        segment_data_list.append({
+                            'path': placeholder_path,
+                            'start_time': segment.start_time,
+                            'end_time': segment.end_time,
+                            'duration': duration,
+                            'type': 'placeholder',
+                            'segment_id': segment_id
+                        })
                 
             print(f"  ✅ Completed processing segment {i+1}/{len(visual_plan.segments)}")
                 

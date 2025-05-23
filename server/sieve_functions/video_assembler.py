@@ -20,36 +20,48 @@ except ImportError:
 
 
 def resize_and_pad(clip, target_w, target_h):
-    """Resizes a clip to fit target_h, pads width to target_w."""
+    """Resizes a clip to fit target dimensions, maintaining aspect ratio and centering."""
     try:
-        print(f"  Resizing clip from {clip.w}x{clip.h} to fit {target_w}x{target_h}")
+        print(f"  Resizing clip from {clip.w}x{clip.h} to {target_w}x{target_h}")
         
-        # Resize based on height, maintaining aspect ratio
-        resized_clip = clip.resize(height=target_h)
-        print(f"  After height resize: {resized_clip.w}x{resized_clip.h}")
+        # Calculate scaling factors for width and height
+        scale_w = target_w / clip.w
+        scale_h = target_h / clip.h
         
-        # Calculate padding needed
-        padding_w = target_w - resized_clip.w
+        # Use the smaller scale factor to maintain aspect ratio and fit within bounds
+        scale_factor = min(scale_w, scale_h)
+        
+        # Calculate new dimensions
+        new_w = int(clip.w * scale_factor)
+        new_h = int(clip.h * scale_factor)
+        
+        print(f"  Scale factor: {scale_factor:.3f}, new size: {new_w}x{new_h}")
+        
+        # Resize the clip
+        resized_clip = clip.resize(width=new_w, height=new_h)
+        
+        # Calculate padding needed to center the clip
+        padding_w = target_w - new_w
+        padding_h = target_h - new_h
         left_pad = padding_w // 2
         right_pad = padding_w - left_pad
+        top_pad = padding_h // 2
+        bottom_pad = padding_h - top_pad
         
-        print(f"  Padding needed: {padding_w}px (left: {left_pad}, right: {right_pad})")
+        print(f"  Padding - width: {padding_w}px (L:{left_pad}, R:{right_pad}), height: {padding_h}px (T:{top_pad}, B:{bottom_pad})")
         
-        # Apply padding only if needed
-        if padding_w > 0:
-            padded_clip = resized_clip.margin(left=left_pad, right=right_pad, color=(0,0,0))
+        # Apply padding if needed
+        if padding_w > 0 or padding_h > 0:
+            padded_clip = resized_clip.margin(
+                left=left_pad, 
+                right=right_pad, 
+                top=top_pad, 
+                bottom=bottom_pad, 
+                color=(0,0,0)
+            )
         else:
-            # If resizing made it wider (unlikely with height focus, but possible), crop
-            padded_clip = resized_clip.crop(x_center=resized_clip.w/2, width=target_w)
+            padded_clip = resized_clip
             
-        print(f"  After padding/cropping: {padded_clip.w}x{padded_clip.h}")
-        
-        # Ensure the final size is exactly target_w x target_h
-        # This guards against small rounding errors or unexpected resize behavior
-        if padded_clip.w != target_w or padded_clip.h != target_h:
-            print(f"  Final size adjustment needed: {padded_clip.w}x{padded_clip.h} -> {target_w}x{target_h}")
-            padded_clip = padded_clip.resize(width=target_w, height=target_h) # Force resize if needed
-
         print(f"  Final clip size: {padded_clip.w}x{padded_clip.h}")
         return padded_clip
         
@@ -67,7 +79,7 @@ def resize_and_pad(clip, target_w, target_h):
 def assemble_final_video(celebrity_video: sieve.File, visuals_video: sieve.File) -> sieve.File:
     """
     Assembles the final video by stacking the visuals video on top of the 
-    celebrity video, fitting them into a 1920x1080 frame.
+    celebrity video, creating a mobile-friendly vertical video (1080x2160).
     
     Args:
         celebrity_video: Sieve.File object of the celebrity video (with audio)
@@ -76,7 +88,7 @@ def assemble_final_video(celebrity_video: sieve.File, visuals_video: sieve.File)
     Returns:
         sieve.File: The assembled final video
     """
-    print(f"Assembling final video from celebrity and visuals videos")
+    print(f"Assembling mobile-friendly vertical video from celebrity and visuals videos")
     celeb_clip = None
     visuals_clip = None
     final_clip = None
@@ -86,10 +98,11 @@ def assemble_final_video(celebrity_video: sieve.File, visuals_video: sieve.File)
         temp_dir = tempfile.mkdtemp()
         final_path = os.path.join(temp_dir, 'final_video.mp4')
 
-        # Target dimensions
-        target_w = 1920
-        target_h = 1080
-        clip_h = target_h // 2 # Height for each individual clip panel
+        # Mobile-friendly vertical dimensions (9:16 aspect ratio)
+        clip_w = 1080  # Each clip width
+        clip_h = 1080  # Each clip height (square clips)
+        target_w = 1080  # Final video width
+        target_h = 2160  # Final video height (2 x 1080)
 
         # Load clips from Sieve File objects
         print("Loading video clips...")
@@ -107,12 +120,12 @@ def assemble_final_video(celebrity_video: sieve.File, visuals_video: sieve.File)
         master_duration = celeb_clip.duration
         print(f"Using master duration: {master_duration}s")
         
-        # Resize and pad clips to fit 1920x540, using master duration
-        print("Resizing and padding clips...")
+        # Resize and pad clips to 1080x1080, using master duration
+        print("Resizing and padding clips to 1080x1080...")
         print("Processing celebrity clip...")
-        celeb_processed = resize_and_pad(celeb_clip, target_w, clip_h).set_duration(master_duration)
+        celeb_processed = resize_and_pad(celeb_clip, clip_w, clip_h).set_duration(master_duration)
         print("Processing visuals clip...")
-        visuals_processed = resize_and_pad(visuals_clip, target_w, clip_h).set_duration(master_duration)
+        visuals_processed = resize_and_pad(visuals_clip, clip_w, clip_h).set_duration(master_duration)
         print("Clips processed.")
 
         # Stack the clips vertically (visuals on top)
