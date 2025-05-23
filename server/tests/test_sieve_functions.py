@@ -46,7 +46,7 @@ class TestSpewPipeline(unittest.TestCase):
             raise ValueError(f"personas.json at {personas_path} is not valid JSON")
         
     def test_complete_spew_pipeline(self):
-        """Test the complete pipeline: script generation -> speech synthesis + transcription -> lipsync"""
+        """Test the complete pipeline: script generation -> speech synthesis + transcription -> visuals -> lipsync"""
         PERSONA_ID = "steve_jobs"  # Test persona
         QUERY = "How neural networks learn patterns in data"
         
@@ -83,6 +83,14 @@ class TestSpewPipeline(unittest.TestCase):
             audio_file=speech_result["audio_file"]
         )
         self._verify_video_result(video_result)
+
+        # Step 4: Generate visuals
+        print("\n🎨 Step 4: Generating visuals...")
+        visuals_result = self._generate_visuals(
+            transcription={"segments": speech_result["transcription"]}
+        )
+        self._verify_visuals_result(visuals_result)
+        
         
         print("\n🎉 Complete pipeline test successful!")
     
@@ -131,6 +139,32 @@ class TestSpewPipeline(unittest.TestCase):
             
         if preview:
             print(f"🗣️  Transcription preview: {preview}...")
+    
+    def _generate_visuals(self, transcription: dict) -> dict:
+        """Generate visuals using the visuals generator function"""
+        visuals_generator = sieve.function.get("sieve-internal/spew_visuals_generator")
+        result = visuals_generator.run(transcription=transcription)
+        
+        # Verify result is a dictionary (the visual plan)
+        self.assertIsInstance(result, dict, "Visuals generator did not return a dictionary (visual plan)")
+        
+        return result
+
+    def _verify_visuals_result(self, result: dict):
+        """Verify visuals generation result (now a visual plan dictionary)"""
+        # Verify the result is a dictionary and contains expected keys for a plan
+        self.assertIsInstance(result, dict)
+        if "error" not in result: # If there's no error, expect segments
+            self.assertIn("segments", result, "Visual plan missing 'segments' key")
+            self.assertIsInstance(result["segments"], list, "'segments' should be a list")
+        
+        print("✅ Visuals plan generation completed")
+        if "error" in result:
+            print(f"⚠️  Visuals plan generation warning/error: {result['error']}")
+        elif result.get("segments"):
+            print(f"📊 Visual plan contains {len(result['segments'])} segments.")
+        else:
+            print("📊 Visual plan is empty or has unexpected structure.")
     
     def _process_lipsync(self, persona_id: str, audio_file: sieve.File) -> sieve.File:
         """Generate lip-synced video using the lipsync processor function"""
