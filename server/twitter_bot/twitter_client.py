@@ -10,10 +10,6 @@ load_dotenv()
 # Configure logging
 logger = logging.getLogger(__name__)
 
-# Global API client objects
-api_v1: Optional[tweepy.API] = None
-api_v2: Optional[tweepy.Client] = None
-
 def init_clients() -> Tuple[Optional[tweepy.API], Optional[tweepy.Client]]:
     """
     Initialize and authenticate Twitter API v1.1 and v2 clients.
@@ -24,8 +20,6 @@ def init_clients() -> Tuple[Optional[tweepy.API], Optional[tweepy.Client]]:
     Returns:
         Tuple of (api_v1, api_v2). Either can be None if initialization failed.
     """
-    global api_v1, api_v2
-    
     # Load credentials from environment variables
     api_key = os.getenv("TWITTER_API_KEY")
     api_key_secret = os.getenv("TWITTER_API_KEY_SECRET")
@@ -123,15 +117,50 @@ def _init_v2_client(api_key: str, api_key_secret: str, access_token: str, access
         logger.error(f"Unexpected error initializing Twitter API v2 client: {e}")
         return None
 
-def get_clients() -> Tuple[Optional[tweepy.API], Optional[tweepy.Client]]:
+def get_baseline_mention_id(api_v2: tweepy.Client) -> Optional[str]:
     """
-    Get the initialized client instances.
+    Get the most recent mention to establish a baseline.
+    Only process mentions newer than this on startup.
+    
+    Args:
+        api_v2: Initialized Twitter API v2 client
     
     Returns:
-        Tuple of (api_v1, api_v2). Call init_clients() first if not already done.
+        The ID of the most recent mention, or None if no mentions found or error occurred.
     """
-    return api_v1, api_v2
-
-def is_initialized() -> bool:
-    """Check if at least one client is initialized."""
-    return api_v1 is not None or api_v2 is not None
+    if not api_v2:
+        logger.error("get_baseline_mention_id: Twitter API v2 client is None.")
+        return None
+    
+    try:
+        # Get bot's user ID first
+        bot_user_response = api_v2.get_me(user_fields=["id", "username"])
+        if not bot_user_response or not bot_user_response.data:
+            logger.error("Could not retrieve bot user information for baseline mention query.")
+            return None
+        
+        bot_user_id = bot_user_response.data.id
+        logger.info(f"Fetching baseline mention for bot user: @{bot_user_response.data.username} (ID: {bot_user_id})")
+        
+        # Fetch just the most recent mentions
+        response = api_v2.get_users_mentions(
+            id=bot_user_id,
+            max_results=5,  # Just need the latest few
+            tweet_fields=["created_at", "author_id"]
+        )
+        
+        if response.data and len(response.data) > 0:
+            latest_mention = response.data[0]  # Most recent mention
+            latest_id = latest_mention.id
+            logger.info(f"Baseline mention ID established: {latest_id} (from {latest_mention.created_at})")
+            return latest_id
+        else:
+            logger.info("No recent mentions found - will process all new mentions from this point forward")
+            return None
+            
+    except tweepy.TweepyException as e:
+        logger.error(f"Twitter API error getting baseline mention: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error getting baseline mention: {e}")
+        return None
