@@ -24,6 +24,14 @@ pending_jobs: dict = {}  # tweet_id -> job_data
 personas_data: Optional[dict] = None
 create_video_function = None
 
+# Rate limiting settings
+MAX_TOTAL_REQUESTS_PER_HOUR = 3
+MAX_VIDEO_REQUESTS_PER_HOUR = 1
+RATE_LIMIT_WINDOW_SECONDS = 3600  # 1 hour
+
+# Rate limiting data structure
+user_request_history: dict = {}  # user_id -> {"total_requests": [timestamps], "video_requests": [timestamps]}
+
 # Job timeout settings
 MAX_JOB_TIME_SECONDS = 21600  # 6 hours timeout
 
@@ -75,6 +83,82 @@ def _load_personas_data(personas_file_path: str = None) -> dict:
         logger.error(f"Failed to load personas from {file_path}: {e}")
         raise
 
+def _cleanup_old_rate_limit_data():
+    """Clean up old rate limit data to prevent memory leaks."""
+    current_time = time.time()
+    cutoff_time = current_time - RATE_LIMIT_WINDOW_SECONDS
+    
+    users_to_remove = []
+    for user_id, history in user_request_history.items():
+        # Filter out old timestamps
+        history["total_requests"] = [ts for ts in history["total_requests"] if ts > cutoff_time]
+        history["video_requests"] = [ts for ts in history["video_requests"] if ts > cutoff_time]
+        
+        # Mark users with no recent activity for removal
+        if not history["total_requests"] and not history["video_requests"]:
+            users_to_remove.append(user_id)
+    
+    # Remove inactive users
+    for user_id in users_to_remove:
+        del user_request_history[user_id]
+    
+    if users_to_remove:
+        logger.info(f"Cleaned up rate limit data for {len(users_to_remove)} inactive users")
+
+def _check_total_request_limit(user_id: str) -> bool:
+    """
+    Check if user has exceeded total request limit (3/hour).
+    Returns True if under limit, False if over limit.
+    """
+    current_time = time.time()
+    cutoff_time = current_time - RATE_LIMIT_WINDOW_SECONDS
+    
+    # Initialize user history if needed
+    if user_id not in user_request_history:
+        user_request_history[user_id] = {"total_requests": [], "video_requests": []}
+    
+    # Filter to recent requests only
+    recent_requests = [ts for ts in user_request_history[user_id]["total_requests"] if ts > cutoff_time]
+    user_request_history[user_id]["total_requests"] = recent_requests
+    
+    # Check if under limit
+    return len(recent_requests) < MAX_TOTAL_REQUESTS_PER_HOUR
+
+def _check_video_request_limit(user_id: str) -> bool:
+    """
+    Check if user has exceeded video request limit (1/hour).
+    Returns True if under limit, False if over limit.
+    """
+    current_time = time.time()
+    cutoff_time = current_time - RATE_LIMIT_WINDOW_SECONDS
+    
+    # Filter to recent video requests only
+    recent_video_requests = [ts for ts in user_request_history[user_id]["video_requests"] if ts > cutoff_time]
+    user_request_history[user_id]["video_requests"] = recent_video_requests
+    
+    # Check if under limit
+    return len(recent_video_requests) < MAX_VIDEO_REQUESTS_PER_HOUR
+
+def _record_total_request(user_id: str):
+    """Record a total request for the user."""
+    current_time = time.time()
+    
+    # Initialize user history if needed
+    if user_id not in user_request_history:
+        user_request_history[user_id] = {"total_requests": [], "video_requests": []}
+    
+    user_request_history[user_id]["total_requests"].append(current_time)
+
+def _record_video_request(user_id: str):
+    """Record a video request for the user."""
+    current_time = time.time()
+    
+    # Initialize user history if needed
+    if user_id not in user_request_history:
+        user_request_history[user_id] = {"total_requests": [], "video_requests": []}
+    
+    user_request_history[user_id]["video_requests"].append(current_time)
+
 def _create_celebrity_list_error_message() -> str:
     """Create a standardized error message for unsupported celebrities."""
     return (
@@ -101,6 +185,16 @@ def handle_mention(tweet):
     logger.info(f"Processing mention: Tweet ID {tweet_id}, Author {author_id}, Text: '{tweet_text}'")
     
     try:
+        # FIRST: Check total request limit (3/hour) - applies to ALL interactions
+        if not _check_total_request_limit(author_id):
+            logger.warning(f"User {author_id} exceeded total request limit for Tweet {tweet_id}")
+            handle_request_error(tweet_id, "You've reached the hourly request limit (3 requests/hour). Please wait before trying again.")
+            return
+        
+        # Record this total request
+        _record_total_request(author_id)
+        logger.info(f"Recorded total request for user {author_id}")
+        
         # Parse the tweet to extract topic and persona
         topic, persona_id, error_message = request_parser.parse_tweet(tweet_text, {"personas": list(personas_data.values())})
         
@@ -122,6 +216,16 @@ def handle_mention(tweet):
             celebrity_list_error = _create_celebrity_list_error_message()
             handle_request_error(tweet_id, celebrity_list_error)
             return
+        
+        # SECOND: Check video request limit (1/hour) - only for successful video requests
+        if not _check_video_request_limit(author_id):
+            logger.warning(f"User {author_id} exceeded video request limit for Tweet {tweet_id}")
+            handle_request_error(tweet_id, "You've already requested a video this hour. Please wait before requesting another video.")
+            return
+        
+        # Record this video request
+        _record_video_request(author_id)
+        logger.info(f"Recorded video request for user {author_id}")
         
         # Process the valid video request
         persona_name = personas_data[persona_id].get('name', 'the selected celebrity')
@@ -190,6 +294,9 @@ def process_video_request(tweet_id: str, author_id: str, topic: str, persona_id:
 
 def check_completed_jobs():
     """Check for completed video generation jobs and post results."""
+    # Clean up old rate limit data periodically
+    _cleanup_old_rate_limit_data()
+    
     logger.info(f"📊 Currently tracking {len(pending_jobs)} pending video jobs")
     
     if not pending_jobs:
@@ -326,3 +433,57 @@ def get_pending_jobs_info() -> list:
         })
     
     return jobs_info
+
+def get_rate_limit_stats() -> dict:
+    """Get rate limiting statistics for monitoring."""
+    current_time = time.time()
+    cutoff_time = current_time - RATE_LIMIT_WINDOW_SECONDS
+    
+    stats = {
+        'total_tracked_users': len(user_request_history),
+        'users_with_recent_activity': 0,
+        'total_recent_requests': 0,
+        'total_recent_video_requests': 0
+    }
+    
+    for user_id, history in user_request_history.items():
+        recent_total = [ts for ts in history["total_requests"] if ts > cutoff_time]
+        recent_video = [ts for ts in history["video_requests"] if ts > cutoff_time]
+        
+        if recent_total or recent_video:
+            stats['users_with_recent_activity'] += 1
+        
+        stats['total_recent_requests'] += len(recent_total)
+        stats['total_recent_video_requests'] += len(recent_video)
+    
+    return stats
+
+def get_user_rate_limit_status(user_id: str) -> dict:
+    """Get rate limit status for a specific user."""
+    current_time = time.time()
+    cutoff_time = current_time - RATE_LIMIT_WINDOW_SECONDS
+    
+    if user_id not in user_request_history:
+        return {
+            'user_id': user_id,
+            'total_requests_used': 0,
+            'video_requests_used': 0,
+            'total_requests_remaining': MAX_TOTAL_REQUESTS_PER_HOUR,
+            'video_requests_remaining': MAX_VIDEO_REQUESTS_PER_HOUR,
+            'can_make_total_request': True,
+            'can_make_video_request': True
+        }
+    
+    history = user_request_history[user_id]
+    recent_total = len([ts for ts in history["total_requests"] if ts > cutoff_time])
+    recent_video = len([ts for ts in history["video_requests"] if ts > cutoff_time])
+    
+    return {
+        'user_id': user_id,
+        'total_requests_used': recent_total,
+        'video_requests_used': recent_video,
+        'total_requests_remaining': max(0, MAX_TOTAL_REQUESTS_PER_HOUR - recent_total),
+        'video_requests_remaining': max(0, MAX_VIDEO_REQUESTS_PER_HOUR - recent_video),
+        'can_make_total_request': recent_total < MAX_TOTAL_REQUESTS_PER_HOUR,
+        'can_make_video_request': recent_video < MAX_VIDEO_REQUESTS_PER_HOUR
+    }
