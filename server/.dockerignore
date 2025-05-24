@@ -1,0 +1,43 @@
+# Ignore unnecessary files for Docker build
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.pytest_cache/
+.coverage
+.env
+.env.local
+.env.*.local
+
+# Development files
+.git/
+.gitignore
+README.md
+*.md
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Flask app files (not needed for bot)
+app.py
+routes/
+static/
+tests/
+
+# Large files that aren't needed
+data/base_videos/
+*.mp4
+*.avi
+*.mov
+
+# Database files (if not needed in container)
+*.db 
