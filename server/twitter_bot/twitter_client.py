@@ -264,6 +264,7 @@ def _sleep_with_shutdown_check(seconds, test_mode=False):
             request_shutdown()
     else:
         remaining = seconds
+        logger.info(f"Sleeping for {seconds} seconds")
         while remaining > 0 and not is_shutdown_requested():
             sleep_time = min(1, remaining)
             time.sleep(sleep_time)
