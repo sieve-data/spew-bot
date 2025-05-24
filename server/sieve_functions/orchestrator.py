@@ -221,16 +221,3 @@ def create_video(persona_id: str, query: str, personas_file_path: str = None) ->
     """
     orchestrator = SpewOrchestrator(personas_file_path)
     return orchestrator.generate_video(persona_id, query)
-
-
-# Example usage
-if __name__ == "__main__":
-    # Example: Generate a video with Kim Kardashian explaining blockchain
-    try:
-        final_video = create_video(
-            persona_id="kim_kardashian",
-            query="What is a blockchain and how does it work?"
-        )
-        print(f"🎬 Video generated successfully: {final_video.path}")
-    except Exception as e:
-        print(f"❌ Error generating video: {e}")

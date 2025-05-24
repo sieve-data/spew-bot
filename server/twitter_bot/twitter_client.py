@@ -164,3 +164,125 @@ def get_baseline_mention_id(api_v2: tweepy.Client) -> Optional[str]:
     except Exception as e:
         logger.error(f"Unexpected error getting baseline mention: {e}")
         return None
+
+def get_bot_user_info(api_v2: tweepy.Client) -> Optional[Tuple[str, str]]:
+    """
+    Get bot's user ID and username.
+    
+    Args:
+        api_v2: Initialized Twitter API v2 client
+    
+    Returns:
+        Tuple of (user_id, username) or None if error occurred.
+    """
+    if not api_v2:
+        logger.error("get_bot_user_info: Twitter API v2 client is None.")
+        return None
+    
+    try:
+        bot_user_response = api_v2.get_me(user_fields=["id", "username"])
+        if bot_user_response and bot_user_response.data:
+            user_id = bot_user_response.data.id
+            username = bot_user_response.data.username
+            logger.info(f"Retrieved bot user info: @{username} (ID: {user_id})")
+            return user_id, username
+        else:
+            logger.error("Could not retrieve bot user information.")
+            return None
+            
+    except tweepy.TweepyException as e:
+        logger.error(f"Twitter API error getting bot user info: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error getting bot user info: {e}")
+        return None
+
+def fetch_mentions(api_v2: tweepy.Client, user_id: str, since_id: Optional[str] = None, max_results: int = 25) -> Optional[tweepy.Response]:
+    """
+    Fetch mentions for a user.
+    
+    Args:
+        api_v2: Initialized Twitter API v2 client
+        user_id: The user ID to fetch mentions for
+        since_id: Optional ID to fetch mentions since (newer than this ID)
+        max_results: Maximum number of mentions to fetch (default 25, max 100)
+    
+    Returns:
+        Twitter API response object or None if error occurred.
+    """
+    if not api_v2:
+        logger.error("fetch_mentions: Twitter API v2 client is None.")
+        return None
+    
+    try:
+        params = {
+            "id": user_id,
+            "max_results": max_results,
+            "tweet_fields": ["author_id", "created_at", "text", "conversation_id", "in_reply_to_user_id", "referenced_tweets"],
+            "expansions": ["author_id"]
+        }
+        
+        if since_id:
+            params["since_id"] = since_id
+            logger.info(f"Fetching mentions for user {user_id} since ID {since_id}")
+        else:
+            logger.info(f"Fetching latest {max_results} mentions for user {user_id}")
+        
+        response = api_v2.get_users_mentions(**params)
+        
+        if response.errors:
+            logger.warning(f"API returned errors when fetching mentions: {response.errors}")
+        
+        return response
+        
+    except tweepy.TweepyException as e:
+        logger.error(f"Twitter API error fetching mentions: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error fetching mentions: {e}")
+        return None
+
+def is_self_mention(tweet: tweepy.Tweet, bot_user_id: str) -> bool:
+    """
+    Check if a tweet is from the bot itself.
+    
+    Args:
+        tweet: The tweet object to check
+        bot_user_id: The bot's user ID
+    
+    Returns:
+        True if the tweet is from the bot itself, False otherwise.
+    """
+    if not tweet or not hasattr(tweet, 'author_id'):
+        return False
+    
+    return str(tweet.author_id) == str(bot_user_id)
+
+def parse_mention_response(response: tweepy.Response) -> Tuple[list, bool]:
+    """
+    Extract mentions from Twitter API response.
+    
+    Args:
+        response: Twitter API response from get_users_mentions
+    
+    Returns:
+        Tuple of (mentions_list, has_errors) where:
+        - mentions_list: List of tweet objects (empty if no mentions)
+        - has_errors: Boolean indicating if the response contained errors
+    """
+    if not response:
+        return [], True
+    
+    mentions = []
+    has_errors = bool(response.errors)
+    
+    if response.data:
+        mentions = list(response.data)
+        logger.info(f"Parsed {len(mentions)} mentions from API response")
+    else:
+        logger.info("No mentions found in API response")
+    
+    if has_errors:
+        logger.warning(f"Response contained {len(response.errors)} error(s)")
+    
+    return mentions, has_errors
