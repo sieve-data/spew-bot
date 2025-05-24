@@ -18,26 +18,25 @@ logger = logging.getLogger(__name__)
 class TweetExtract(BaseModel):
     """
     Pydantic model for structured LLM output.
-    The LLM should extract the main topic and the celebrity mentioned.
+    The LLM should extract the main topic and the persona ID mentioned.
     """
     topic: Optional[str]
-    celebrity_mention: Optional[str]
+    persona_id: Optional[str]
 
 class PersonaInfo:
     """Helper class to manage persona data and provide easy access to supported celebrities."""
     
     def __init__(self, personas_data: dict):
         self.personas_data = personas_data
-        self._persona_lookup = self._build_persona_lookup()
+        self._id_lookup = self._build_id_lookup()
     
-    def _build_persona_lookup(self) -> Dict[str, str]:
-        """Build a case-insensitive lookup from celebrity names to persona IDs."""
+    def _build_id_lookup(self) -> Dict[str, str]:
+        """Build a case-insensitive lookup from persona IDs to persona IDs (for ID-based search)."""
         lookup = {}
         for persona in self.personas_data.get("personas", []):
-            name = persona.get("name", "").strip().lower()
-            persona_id = persona.get("id", "")
-            if name and persona_id:
-                lookup[name] = persona_id
+            persona_id = persona.get("id", "").strip().lower()
+            if persona_id:
+                lookup[persona_id] = persona.get("id", "")  # Store original case
         return lookup
     
     def get_supported_celebrities(self) -> List[str]:
@@ -50,9 +49,10 @@ class PersonaInfo:
         return [persona.get("id", "") for persona in self.personas_data.get("personas", []) 
                 if persona.get("id")]
     
-    def find_persona_id(self, celebrity_name: str) -> Optional[str]:
-        """Find persona ID by celebrity name (case-insensitive)."""
-        return self._persona_lookup.get(celebrity_name.strip().lower())
+    def find_persona_id(self, persona_id: str) -> Optional[str]:
+        """Find persona ID by exact persona ID match (case-insensitive)."""
+        identifier_lower = persona_id.strip().lower()
+        return self._id_lookup.get(identifier_lower)
 
 def parse_tweet(tweet_text: str, personas_data: dict) -> Tuple[Optional[str], Optional[str], Optional[str]]:
     """
@@ -78,23 +78,23 @@ def parse_tweet(tweet_text: str, personas_data: dict) -> Tuple[Optional[str], Op
 
     # Initialize persona helper
     persona_info = PersonaInfo(personas_data)
-    supported_celebrities = persona_info.get_supported_celebrities()
+    supported_persona_ids = persona_info.get_supported_persona_ids()
     
     try:
         logger.info(f"Parsing tweet: \"{tweet_text}\"")
         
-        # Create system prompt with supported celebrities for better extraction
+        # Create system prompt with supported persona IDs for better extraction
         system_prompt = f"""You are an expert tweet analyst.
 Your task is to identify two key pieces of information from a user's tweet:
 1. The main **topic** or question the user wants explained.
-2. The full **celebrity_mention** of a person the user wants to explain the topic.
+2. The **persona_id** that the user wants to use for the explanation.
 
-Supported celebrities include: {', '.join(supported_celebrities)}
+Supported persona IDs include: {', '.join(supported_persona_ids)}
 
-If the user doesn't explicitly mention a celebrity to do the explaining, or if the celebrity is not clearly identifiable, return null for `celebrity_mention`.
+If the user doesn't explicitly mention a persona ID, or if the persona ID is not clearly identifiable, return null for `persona_id`.
 The topic should be a concise summary of what needs to be explained.
-The celebrity name should be the full name as accurately as possible based on the tweet.
-Do not infer a celebrity if not mentioned."""
+The persona_id should be extracted exactly as mentioned in the tweet.
+Do not infer a persona_id if not mentioned."""
 
         user_prompt = f"Here's the tweet: \"{tweet_text}\""
 
@@ -111,27 +111,27 @@ Do not infer a celebrity if not mentioned."""
             return None, None, "Error: Could not parse tweet structure from LLM."
 
         topic = extracted_data.topic
-        celebrity_mention = extracted_data.celebrity_mention
+        persona_id = extracted_data.persona_id
 
-        logger.info(f"LLM extracted: Topic='{topic}', Celebrity='{celebrity_mention}'")
+        logger.info(f"LLM extracted: Topic='{topic}', Persona ID='{persona_id}'")
 
         # Validate topic extraction
         if not topic or not topic.strip():
             return None, None, "Error: Could not determine the topic from the tweet."
 
-        # Handle missing celebrity
-        if not celebrity_mention or not celebrity_mention.strip():
-            return topic, None, "No celebrity mentioned or identified in the tweet."
+        # Handle missing persona ID
+        if not persona_id or not persona_id.strip():
+            return topic, None, "No persona ID mentioned or identified in the tweet."
 
-        # Match celebrity to persona
-        matched_persona_id = persona_info.find_persona_id(celebrity_mention)
+        # Match persona ID to persona
+        matched_persona_id = persona_info.find_persona_id(persona_id)
         
         if not matched_persona_id:
-            supported_list = ', '.join(supported_celebrities)
-            logger.warning(f"Celebrity '{celebrity_mention}' not found in personas data.")
-            return topic, None, f"Error: Celebrity '{celebrity_mention}' is not supported. Supported celebrities: {supported_list}"
+            supported_list = ', '.join(supported_persona_ids)
+            logger.warning(f"Persona ID '{persona_id}' not found in personas data.")
+            return topic, None, f"Error: Persona ID '{persona_id}' is not supported. Supported persona IDs: {supported_list}"
 
-        logger.info(f"Successfully matched celebrity '{celebrity_mention}' to persona ID: '{matched_persona_id}'")
+        logger.info(f"Successfully matched persona ID '{persona_id}' to persona ID: '{matched_persona_id}'")
         return topic, matched_persona_id, None
 
     except Exception as e:

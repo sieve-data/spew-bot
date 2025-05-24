@@ -76,13 +76,9 @@ def _load_personas_data(personas_file_path: str = None) -> dict:
         raise
 
 def _create_celebrity_list_error_message() -> str:
-    """Create a standardized error message with the full list of supported celebrities."""
-    available_personas = [p.get('name', 'Unknown') for p in personas_data.values()]
-    available_personas.sort()  # Sort alphabetically for consistency
-    
+    """Create a standardized error message for unsupported celebrities."""
     return (
-        f"Sorry, I couldn't find that celebrity. Supported celebs:\n\n"
-        f"{', '.join(available_personas)}\n\n"
+        f"Sorry, I don't recognize that celebrity. Please check the spelling and try again.\n\n"
         f"Format: @celebxplain explain [topic] by [celebrity]"
     )
 
