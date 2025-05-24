@@ -66,11 +66,21 @@ class SpewOrchestrator:
         
         # Step 1: Generate script
         print("\n📝 Step 1: Generating script...")
-        script_result = self._generate_script(
-            query=query,
-            name=persona["name"],
-            style=persona["style_prompt"]
-        )
+        # script_result = self._generate_script(
+        #     query=query,
+        #     name=persona["name"],
+        #     style=persona["style_prompt"]
+        # )
+        script_result = """
+        Hey dolls! Today we're diving deep into blockchain technology, which is like, way more complex than my marriage to Kris Humphries - and that's saying something!
+
+        So technically, a blockchain is a distributed ledger that maintains an ever-growing list of records called blocks, each cryptographically linked to the previous one using a hash function. 
+        
+        Each block contains three crucial elements: transaction data, a timestamp, and the cryptographic hash of the previous block, creating an immutable chain of information.
+
+        Miners do some complex math to verify the transactions and add them to the blockchain.
+        """
+
         print(f"✅ Script generated ({len(script_result)} characters)")
         
         # Step 2: Generate speech and transcribe
