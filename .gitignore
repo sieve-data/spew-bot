@@ -1,0 +1,44 @@
+# dependencies
+/client/node_modules
+/client/.pnp
+/client/.pnp.*
+/client/.yarn/*
+/client/.yarn/patches
+/client/.yarn/plugins
+/client/.yarn/releases
+/client/.yarn/versions
+
+# testing
+/client/coverage
+
+# next.js
+/client/.next/
+/client/out/
+
+# production
+/client/build
+
+# misc
+*.DS_Store
+*.pem
+
+# debug
+/client/npm-debug.log*
+/client/yarn-debug.log*
+/client/yarn-error.log*
+
+# local env files
+/client/.env*.local
+
+# vercel
+/client/.vercel
+
+# typescript
+/client/*.tsbuildinfo
+/client/next-env.d.ts
+
+# Server data
+/server/data/database.db
+/server/data/results
+/server/.env
+*.pyc
