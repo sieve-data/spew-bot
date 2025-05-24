@@ -25,7 +25,7 @@ personas_data: Optional[dict] = None
 create_video_function = None
 
 # Job timeout settings
-MAX_JOB_TIME_SECONDS = 1800  # 30 minutes timeout
+MAX_JOB_TIME_SECONDS = 21600  # 6 hours timeout
 
 def init_action_handler(personas_file_path: str = None):
     """
