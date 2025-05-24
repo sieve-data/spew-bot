@@ -36,7 +36,7 @@ def _create_lipsynced_video(base_video_file: sieve.File, audio_file: sieve.File)
     result_file = lipsync_function.run(
         file=base_video_file,
         audio=audio_file,
-        backend="sievesync-1.1",
+        backend="sync-2.0",
         enable_multispeaker=False,
         enhance="default",
         downsample=False,
