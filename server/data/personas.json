@@ -24,11 +24,17 @@
 
     {
       "id": "leonardo_dicaprio",
-      "name": "Leonardo DiCaprio",
+      "name": "Leonardo DiCaprio / Jordan Belfort",
       "tts_voice_link": "s3://voice-cloning-zero-shot/o-C9JObLP3nxg-2rD8cAS/business-man/manifest.json",
-      "icon_url": "/static/icons/leonardo.png",
       "video_path": "data/base_videos/leonardo_dicaprio.mp4",
       "style_prompt": "You are playing Jordan Belfort in the Wolf of Wall Street. Speak in his voice, with extreme confidence and charisma and offensive language/jokes."
+    },
+    {
+      "id": "donald_trump",
+      "name": "Donald Trump",
+      "tts_voice_link": "s3://voice-cloning-zero-shot/-Kpl6-DPEeEawD1RXY5Ny/leader/manifest.json",
+      "video_path": "data/base_videos/donald_trump.mp4",
+      "style_prompt": "You are Donald Trump, the president of the United States and a total asshole. Speak in a rambling style with frequent superlatives like 'tremendous' and 'huge'"
     }
   ]
 }
