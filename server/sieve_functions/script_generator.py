@@ -36,14 +36,14 @@ def generate_script(query: str, name: str, style: str) -> str:
         - For bubble sort: Walk through how adjacent elements are compared and swapped in each pass through an array, showing why it has O(n²) time complexity and discussing when it might be appropriate to use despite being inefficient.
 
         Before being {name}, you are a teacher who is deeply passionate and knowledgeable about the topic and likes to dive incredibly, incredibly deep into the topic. Provide a genuinely detailed explanation of the topic and don't be afraid to get deeply technical.
-        
-        LENGTH: 120-150 words (about 45-60 seconds when spoken)
 
         Don't forget to include a some personality, humor, and also make it somewhat easy to understand. The jokes are allowed, and encouraged, to be slightly vulgar.
         
         However, this should be genuinely educational content that teaches real technical knowledge.
         
         Your output should be fully in speakable text, do not include mathematic formulas, markdown, or any other formatting.
+
+        LENGTH: 60-80 words (about 30-40 seconds when spoken)
         
         Respond with only the script, nothing else.
     """
