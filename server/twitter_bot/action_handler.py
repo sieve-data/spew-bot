@@ -25,7 +25,7 @@ personas_data: Optional[dict] = None
 create_video_function = None
 
 # Job timeout settings
-MAX_JOB_TIME_SECONDS = 600  # 10 minutes timeout
+MAX_JOB_TIME_SECONDS = 1800  # 30 minutes timeout
 
 def init_action_handler(personas_file_path: str = None):
     """
@@ -209,8 +209,7 @@ def check_completed_jobs():
         # Check for timeout
         if current_time - start_time > MAX_JOB_TIME_SECONDS:
             completed_jobs.append(tweet_id)
-            logger.warning(f"Job for Tweet {tweet_id} timed out after {MAX_JOB_TIME_SECONDS} seconds")
-            _post_timeout_response(tweet_id, job_data)
+            logger.warning(f"Job for Tweet {tweet_id} timed out after {MAX_JOB_TIME_SECONDS} seconds - staying silent")
             continue
         
         # Check if job is done
@@ -224,8 +223,7 @@ def check_completed_jobs():
                 _post_completed_video(tweet_id, video_file, job_data)
                 
             except Exception as e:
-                logger.error(f"Video generation failed for Tweet {tweet_id}: {e}", exc_info=True)
-                _post_error_response(tweet_id, e, job_data)
+                logger.error(f"Video generation failed for Tweet {tweet_id}: {e} - staying silent", exc_info=True)
     
     # Clean up completed jobs
     for tweet_id in completed_jobs:
@@ -247,11 +245,7 @@ def _post_completed_video(tweet_id: str, video_file: sieve.File, job_data: dict)
         logger.info(f"Downloaded video for Tweet {tweet_id} to: {local_video_path}")
         
         if not os.path.exists(local_video_path):
-            logger.error(f"Video file not found at {local_video_path} for Tweet {tweet_id}")
-            error_msg = f"Sorry, the generated video file wasn't found. Please try again."
-            response = twitter_client.post_reply(tweet_id, error_msg)
-            if not response:
-                logger.error(f"❌ Also failed to post file-not-found error to Twitter for Tweet {tweet_id}")
+            logger.error(f"Video file not found at {local_video_path} for Tweet {tweet_id} - staying silent")
             return
         
         # Upload video to Twitter
@@ -259,11 +253,7 @@ def _post_completed_video(tweet_id: str, video_file: sieve.File, job_data: dict)
         media_id = twitter_client.upload_video(local_video_path)
         
         if not media_id:
-            logger.error(f"Failed to upload video to Twitter for Tweet {tweet_id}")
-            error_msg = f"Sorry, I couldn't upload the video to Twitter. Please try again later."
-            response = twitter_client.post_reply(tweet_id, error_msg)
-            if not response:
-                logger.error(f"❌ Also failed to post upload-failed error to Twitter for Tweet {tweet_id}")
+            logger.error(f"Failed to upload video to Twitter for Tweet {tweet_id} - staying silent")
             return
         
         # Post final reply with video
@@ -277,40 +267,7 @@ def _post_completed_video(tweet_id: str, video_file: sieve.File, job_data: dict)
             logger.error(f"❌ Failed to post final video reply for Tweet {tweet_id}")
             
     except Exception as e:
-        logger.error(f"Error posting completed video for Tweet {tweet_id}: {e}", exc_info=True)
-        error_msg = f"Sorry, I couldn't upload the video to Twitter. Please try again later."
-        response = twitter_client.post_reply(tweet_id, error_msg)
-        if not response:
-            logger.error(f"❌ Also failed to post exception error to Twitter for Tweet {tweet_id}")
-
-def _post_error_response(tweet_id: str, error: Exception, job_data: dict):
-    """Post error message for failed job."""
-    topic = job_data['topic']
-    error_msg = f"Sorry, I encountered an error generating the video about '{topic}'. Please try again later."
-    
-    try:
-        response = twitter_client.post_reply(tweet_id, error_msg)
-        if response:
-            logger.info(f"Posted error response for Tweet {tweet_id}")
-        else:
-            logger.error(f"❌ Twitter API returned None when posting error response for Tweet {tweet_id}")
-    except Exception as e:
-        logger.error(f"❌ TWITTER API ERROR posting error response for Tweet {tweet_id}: {e}", exc_info=True)
-
-def _post_timeout_response(tweet_id: str, job_data: dict):
-    """Post timeout message for jobs that took too long."""
-    topic = job_data['topic']
-    persona_name = job_data['persona_name']
-    error_msg = f"Sorry, the video generation for '{topic}' by {persona_name} is taking longer than expected. Please try again later."
-    
-    try:
-        response = twitter_client.post_reply(tweet_id, error_msg)
-        if response:
-            logger.info(f"Posted timeout response for Tweet {tweet_id}")
-        else:
-            logger.error(f"❌ Twitter API returned None when posting timeout response for Tweet {tweet_id}")
-    except Exception as e:
-        logger.error(f"❌ TWITTER API ERROR posting timeout response for Tweet {tweet_id}: {e}", exc_info=True)
+        logger.error(f"Error posting completed video for Tweet {tweet_id}: {e} - staying silent", exc_info=True)
 
 def handle_request_error(tweet_id: str, error_message: str):
     """
