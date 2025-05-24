@@ -42,7 +42,7 @@ class TestSpewPipeline(unittest.TestCase):
     def test_complete_spew_pipeline(self):
         """Test the complete pipeline using the orchestrator"""
         PERSONA_ID = "kim_kardashian"  # Test persona
-        QUERY = "Can you explain how large language models like chatgpt work on a lower level to someone who's not technical at all and doesn't know anything about programming or AI? "
+        QUERY = "Can you explain how large language models like chatgpt work on a lower level to someone who's not technical at all and doesn't know anything about programming or AI? Explain it as if I'm a high school student."
         
         print("🚀 Starting complete Spew pipeline test using orchestrator...")
         
