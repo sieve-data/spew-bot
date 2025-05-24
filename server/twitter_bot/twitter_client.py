@@ -1,8 +1,12 @@
 import os
+import time
 import tweepy
 import logging
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, Any
 from dotenv import load_dotenv
+import cv2
+import numpy as np
+import tempfile
 
 # Load environment variables
 load_dotenv()
@@ -286,3 +290,174 @@ def parse_mention_response(response: tweepy.Response) -> Tuple[list, bool]:
         logger.warning(f"Response contained {len(response.errors)} error(s)")
     
     return mentions, has_errors
+
+# ============================================
+# HELPER FUNCTIONS FOR POSTING AND UPLOADS
+# ============================================
+
+# Define specific HTTP status codes that should not be retried
+NON_RETRYABLE_STATUS_CODES = [400, 401, 403, 404]  # Bad Request, Unauthorized, Forbidden, Not Found
+
+def is_retryable_twitter_error(error: Exception) -> bool:
+    """
+    Determine if a Twitter API error should be retried.
+    
+    Args:
+        error: The exception or error object
+    
+    Returns:
+        True if the error should be retried, False otherwise.
+    """
+    if isinstance(error, tweepy.TweepyException):
+        status_code = getattr(error.response, 'status_code', None)
+        if status_code in NON_RETRYABLE_STATUS_CODES:
+            return False
+    
+    return True
+
+def _attempt_tweet_post(api_v2: tweepy.Client, tweet_params: dict) -> Optional[tweepy.Response]:
+    """Simple tweet posting without retry logic."""
+    try:
+        response = api_v2.create_tweet(**tweet_params)
+        if response.data and response.data.get("id"):
+            return response
+        return None
+    except tweepy.TweepyException as e:
+        if not is_retryable_twitter_error(e):
+            return None
+        raise  # Re-raise for retry logic
+
+def post_reply_to_tweet(
+    api_v2: tweepy.Client, 
+    tweet_id: str, 
+    text: str, 
+    media_id: Optional[str] = None,
+    max_retries: int = 3,
+    retry_delay: int = 5
+) -> Optional[tweepy.Response]:
+    """
+    Posts a reply to a given tweet. Optionally attaches media.
+    
+    Args:
+        api_v2: Initialized Twitter API v2 client
+        tweet_id: The ID of the tweet to reply to
+        text: The text content of the reply
+        media_id: Optional media ID to attach (e.g., from video upload)
+        max_retries: Maximum number of retry attempts (default 3)
+        retry_delay: Seconds to wait between retries (default 5)
+    
+    Returns:
+        A tweepy.Response object if successful, None otherwise.
+    """
+    if not api_v2:
+        return None
+
+    reply_params = {"in_reply_to_tweet_id": tweet_id, "text": text}
+    if media_id:
+        reply_params["media_ids"] = [media_id]
+
+    for attempt in range(max_retries):
+        try:
+            return _attempt_tweet_post(api_v2, reply_params)
+        except tweepy.TweepyException:
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+            else:
+                return None
+        except Exception:
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+            else:
+                return None
+
+    return None
+
+def get_video_processing_status(api_v1: tweepy.API, media_id: str) -> Dict[str, Any]:
+    """
+    Check the processing status of an uploaded video.
+    
+    Args:
+        api_v1: Initialized Twitter API v1.1 client
+        media_id: The media ID to check status for
+    
+    Returns:
+        Dict with keys: 'state', 'progress_percent', 'error', 'success'
+    """
+    if not api_v1:
+        return {'state': 'unknown', 'success': False, 'error': 'No API client'}
+    
+    try:
+        upload_status = api_v1.get_media_upload_status(media_id)
+        processing_info = upload_status.processing_info or {}
+        
+        state = processing_info.get('state', 'unknown')
+        result = {
+            'state': state,
+            'progress_percent': processing_info.get('progress_percent', 0),
+            'success': state == 'succeeded',
+            'error': None
+        }
+        
+        if state == 'failed':
+            error_info = processing_info.get('error', {})
+            result['error'] = f"{error_info.get('name', 'Unknown')}: {error_info.get('message', 'No details')}"
+        
+        return result
+        
+    except Exception as e:
+        return {'state': 'unknown', 'success': False, 'error': str(e), 'progress_percent': None}
+
+def _wait_for_video_processing(api_v1: tweepy.API, media_id: str, max_checks: int, interval: int) -> bool:
+    """Wait for video processing to complete. Returns True if successful."""
+    for _ in range(max_checks):
+        status = get_video_processing_status(api_v1, media_id)
+        
+        if status['success']:
+            return True
+        elif status['state'] == 'failed':
+            return False
+        elif status['state'] in ['in_progress', 'pending']:
+            time.sleep(interval)
+        else:
+            time.sleep(interval)
+    
+    return False  # Timeout
+
+def upload_video_to_twitter(
+    api_v1: tweepy.API, 
+    video_filepath: str,
+    max_status_checks: int = 24,
+    status_check_interval: int = 5
+) -> Optional[str]:
+    """
+    Upload a video to Twitter using chunked upload.
+    
+    Args:
+        api_v1: Initialized Twitter API v1.1 client
+        video_filepath: Absolute path to the video file
+        max_status_checks: Maximum number of status checks (default 24)
+        status_check_interval: Seconds between status checks (default 5)
+    
+    Returns:
+        The Twitter media_id string if successful, None otherwise.
+    """
+    if not api_v1 or not os.path.exists(video_filepath):
+        return None
+
+    try:
+        # Upload the video (handles INIT, APPEND, FINALIZE phases)
+        media_upload_response = api_v1.media_upload(
+            filename=video_filepath, 
+            media_category='tweet_video', 
+            chunked=True
+        )
+        media_id = media_upload_response.media_id_string
+
+        # Wait for processing to complete
+        if _wait_for_video_processing(api_v1, media_id, max_status_checks, status_check_interval):
+            return media_id
+        else:
+            return None
+
+    except Exception:
+        return None
