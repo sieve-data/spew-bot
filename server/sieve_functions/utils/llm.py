@@ -12,7 +12,6 @@ DEFAULT_CLAUDE_MODEL = "claude-3-opus-20240229"
 def _call_gpt(
     prompt: str,
     model: str = None,
-    max_tokens: int = 1024,
     system_prompt: Optional[str] = None,
     response_model: Optional[Type[BaseModel]] = None
 ) -> Union[str, BaseModel]:
@@ -34,7 +33,6 @@ def _call_gpt(
             completion = client.beta.chat.completions.parse(
                 model=current_model,
                 messages=messages,
-                max_tokens=max_tokens, # Max tokens might still be relevant
                 response_format=response_model # Pass the Pydantic model directly
             )
             # The .parse() method should directly return the parsed Pydantic model instance
@@ -50,7 +48,6 @@ def _call_gpt(
             response = client.chat.completions.create(
                 model=current_model,
                 messages=messages,
-                max_tokens=max_tokens,
             )
             return response.choices[0].message.content
     except AttributeError as e:
@@ -65,7 +62,6 @@ def _call_gpt(
 def _call_claude(
     prompt: str,
     model: str = None,
-    max_tokens: int = 1024,
     system_prompt: Optional[str] = None,
 ) -> str:
     api_key = os.getenv("ANTHROPIC_API_KEY")
@@ -78,7 +74,6 @@ def _call_claude(
         # Build the request parameters
         request_params = {
             "model": current_model,
-            "max_tokens": max_tokens,
             "messages": [{"role": "user", "content": prompt}]
         }
         
@@ -96,16 +91,15 @@ def call_llm(
     provider: str, 
     prompt: str, 
     model: str = None, 
-    max_tokens: int = 1024, 
     system_prompt: Optional[str] = None,
     response_model: Optional[Type[BaseModel]] = None
 ) -> Union[str, BaseModel]:
     if provider.lower() == "gpt":
-        return _call_gpt(prompt, model, max_tokens, system_prompt, response_model)
+        return _call_gpt(prompt, model, system_prompt, response_model)
     elif provider.lower() == "claude":
         if response_model:
             print("Warning: 'response_model' is provided but not natively supported for Claude in this utility. Returning raw text.")
-        return _call_claude(prompt, model, max_tokens, system_prompt)
+        return _call_claude(prompt, model, system_prompt)
     else:
         raise ValueError(f"Unsupported LLM provider: {provider}. Supported providers are 'gpt' and 'claude'.")
 

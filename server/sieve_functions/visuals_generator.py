@@ -39,7 +39,7 @@ class VisualSegment(BaseModel):
 class VisualPlan(BaseModel):
     segments: List[VisualSegment]
 
-def _generate_animation_code(description: str, duration: float, llm_provider: str = "claude", llm_model: str = "claude-3-5-sonnet-20241022") -> Optional[str]:
+def _generate_animation_code(description: str, duration: float, llm_provider: str = "gpt", llm_model: str = "o3-mini-2025-01-31") -> Optional[str]:
     """
     Generate Matplotlib animation code using LLM based on the description and duration.
     
@@ -74,7 +74,7 @@ def _generate_animation_code(description: str, duration: float, llm_provider: st
         2. Include ALL necessary imports from the AVAILABLE LIBRARIES list above
         3. DO NOT import any libraries not listed above
         4. Set the animation to run for exactly {duration} seconds (fps = 30, so frames = {int(duration * 30)})
-        5. Use anim.save('animation.mp4', writer='pillow', fps=30) to save the file (NOT ffmpeg - use pillow writer)
+        5. Use anim.save('animation.mp4', writer='ffmpeg', fps=30) to save the file (ffmpeg writer recommended for MP4)
         6. IMPORTANT: Add automatic writer detection at the end of your code:
            ```python
            # Try to save with the best available writer
@@ -82,23 +82,24 @@ def _generate_animation_code(description: str, duration: float, llm_provider: st
                anim.save('animation.mp4', writer='ffmpeg', fps=30)
            except:
                try:
-                   anim.save('animation.mp4', writer='pillow', fps=30)
-               except:
                    anim.save('animation.mp4', writer='imagemagick', fps=30)
+               except:
+                   anim.save('animation.mp4', writer='pillow', fps=30)
            ```
         7. The code MUST be complete and self-contained - no external dependencies beyond the AVAILABLE LIBRARIES
         8. Include clear, descriptive comments explaining the animation logic
-        9. Use plt.style.use('dark_background') for a clean dark theme
-        10. Make text readable with appropriate font sizes (minimum 14pt)
-        11. For mathematical expressions, use LaTeX formatting with plt.text() and r'$...$' syntax
-        12. The code should NOT use plt.show() - it MUST save to a file
-        13. Avoid deprecated Matplotlib features
-        14. Use figsize=(10.8, 10.8) for mobile-friendly square video dimensions (1080x1080)
-        15. Set up proper axis limits and remove unnecessary axes/ticks for clean visuals
-        16. Use smooth, continuous animations with proper easing
-        17. Ensure colors are vibrant and contrasting against the dark background
-
-        ANIMATION CONCEPT:
+        9. Use a clean, minimalist visual style similar to 3Blue1Brown's animations
+        10. Make sure text is readable and appropriately sized (minimum 14pt)
+        11. For mathematical expressions, use LaTeX formatting with plt.text() and the r'$...$' syntax
+        12. The code should NOT rely on showing the animation with plt.show() - it MUST save to a file
+        13. Avoid using deprecated Matplotlib features
+        14. Use "plt.style.use('dark_background')" for a clean dark theme
+        15. Use figsize=(10.8, 10.8) for mobile-friendly square video dimensions (1080x1080)
+        16. Set up proper axis limits and remove unnecessary axes/ticks for clean visuals
+        17. Use smooth, continuous animations with proper easing
+        18. Ensure colors are vibrant and contrasting against the dark background (blues, oranges, whites, greens)
+        
+        The animation should visualize the following concept:
         {description}
 
         STYLE GUIDELINES:
@@ -138,7 +139,7 @@ def _generate_animation_code(description: str, duration: float, llm_provider: st
         print(f"  ❌ Error generating animation code: {e}")
         return None
 
-def _fix_animation_code(original_code: str, error_message: str, original_description: str, duration: float, llm_provider: str = "claude", llm_model: str = "claude-3-5-sonnet-20241022") -> Optional[str]:
+def _fix_animation_code(original_code: str, error_message: str, original_description: str, duration: float, llm_provider: str = "gpt", llm_model: str = "o3-mini-2025-01-31") -> Optional[str]:
     print(f"  🔧 Fixing animation code with {llm_provider}/{llm_model}...")
     
     system_prompt = """You are an expert Python developer and Matplotlib animation specialist. You excel at debugging code, identifying root causes of errors, and creating production-ready fixes. You always provide complete, working solutions."""
@@ -175,7 +176,7 @@ def _fix_animation_code(original_code: str, error_message: str, original_descrip
 
         CRITICAL REQUIREMENTS FOR THE FIX:
         - Animation must be exactly {duration} seconds long (fps=30)
-        - Use anim.save('animation.mp4', writer='pillow', fps=30) to save
+        - Use anim.save('animation.mp4', writer='ffmpeg', fps=30) to save (ffmpeg writer recommended for MP4)
         - Include ALL necessary imports from the AVAILABLE LIBRARIES list above
         - DO NOT import any libraries not listed in AVAILABLE LIBRARIES
         - Use plt.style.use('dark_background') for consistent styling
@@ -190,6 +191,7 @@ def _fix_animation_code(original_code: str, error_message: str, original_descrip
         - Use simple text instead of LaTeX commands (avoid \\text{{}} - use plain strings)
         - Ensure all variables (especially 'anim') are properly defined before use
         - Double-check all parentheses, brackets, and indentation are correct
+        - Use 'ffmpeg' writer for MP4 files, not 'pillow' (pillow cannot save MP4 format)
 
         STYLE REQUIREMENTS:
         - Clean, minimalist 3Blue1Brown aesthetic
@@ -422,8 +424,8 @@ def _create_matplotlib_animation(description: str, duration: float, segment_id: 
     
     # Configuration
     max_attempts = 3
-    llm_provider = "claude"
-    llm_model = "claude-3-5-sonnet-20241022"
+    llm_provider = "gpt"
+    llm_model = "o3-mini-2025-01-31"
     
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
