@@ -163,7 +163,7 @@ def _create_celebrity_list_error_message() -> str:
     """Create a standardized error message for unsupported celebrities."""
     return (
         f"Sorry, I don't recognize that celebrity. Please check the spelling and try again.\n\n"
-        f"Format: @celebxplain explain [topic] by [celebrity]"
+        f"Format: @spewbot explain [topic] by [celebrity]"
     )
 
 def handle_mention(tweet):
@@ -387,7 +387,7 @@ def handle_request_error(tweet_id: str, error_message: str):
     try:
         # Make error message more helpful
         if "couldn't identify" in error_message.lower() or "couldn't understand" in error_message.lower():
-            helpful_msg = f"{error_message} Try format: @YourBotHandle explain [topic] by [celebrity name]"
+            helpful_msg = f"{error_message} Try format: @spewbot explain [topic] by [celebrity name]"
         else:
             helpful_msg = error_message
             
