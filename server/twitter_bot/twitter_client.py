@@ -4,9 +4,6 @@ import tweepy
 import logging
 from typing import Optional, Tuple, Dict, Any, Callable
 from dotenv import load_dotenv
-import cv2
-import numpy as np
-import tempfile
 
 # Load environment variables
 load_dotenv()
@@ -14,9 +11,7 @@ load_dotenv()
 # Configure logging
 logger = logging.getLogger(__name__)
 
-# Global variables for since_id management
-APP_DATA_BASE_DIR = os.environ.get('APP_DATA_BASE_DIR', 'data')
-SINCE_ID_FILE = os.path.join(os.path.dirname(__file__), '..', APP_DATA_BASE_DIR, 'since_id.txt')
+# Global variables for mention listening
 MENTIONS_POLLING_INTERVAL_SECONDS = int(os.getenv("MENTIONS_POLLING_INTERVAL_SECONDS", 30))
 TWITTER_BOT_USERNAME = os.getenv("TWITTER_BOT_USERNAME")
 
@@ -164,231 +159,103 @@ def _init_v2_client(api_key: str, api_key_secret: str, access_token: str, access
         return None
 
 # ============================================
-# SINCE ID MANAGEMENT 
-# ============================================
-
-def _read_since_id() -> Optional[int]:
-    """Reads the since_id from the SINCE_ID_FILE."""
-    if not os.path.exists(SINCE_ID_FILE):
-        logger.info(f"Since ID file not found at {SINCE_ID_FILE}. Will fetch latest mention as baseline.")
-        return None
-    try:
-        with open(SINCE_ID_FILE, 'r') as f:
-            content = f.read().strip()
-            if content:
-                logger.info(f"Successfully read since_id {content} from {SINCE_ID_FILE}")
-                return int(content)
-            else:
-                logger.warning(f"Since ID file {SINCE_ID_FILE} is empty.")
-                return None
-    except ValueError:
-        logger.error(f"Invalid content in since_id file {SINCE_ID_FILE}. Could not parse to int.")
-        return None
-    except IOError as e:
-        logger.error(f"IOError reading since_id file {SINCE_ID_FILE}: {e}")
-        return None
-
-def _write_since_id(since_id: int) -> None:
-    """Writes the since_id to the SINCE_ID_FILE."""
-    try:
-        # Ensure the directory exists
-        os.makedirs(os.path.dirname(SINCE_ID_FILE), exist_ok=True)
-        with open(SINCE_ID_FILE, 'w') as f:
-            f.write(str(since_id))
-        logger.info(f"Successfully wrote since_id {since_id} to {SINCE_ID_FILE}")
-    except IOError as e:
-        logger.error(f"IOError writing since_id to file {SINCE_ID_FILE}: {e}")
-    except Exception as e:
-        logger.error(f"Unexpected error writing since_id {since_id} to {SINCE_ID_FILE}: {e}", exc_info=True)
-
-def update_since_id_after_reply(original_tweet_id: str) -> None:
-    """
-    Updates the since_id file with the ID of the original tweet that was replied to.
-    This ensures we don't reprocess tweets we've already replied to.
-    
-    Args:
-        original_tweet_id: The ID of the tweet the bot replied to (not the bot's reply ID)
-    """
-    try:
-        # Convert to int for proper comparison
-        tweet_id_int = int(original_tweet_id)
-        
-        # Read current since_id to see if this is newer
-        current_since_id = _read_since_id()
-        
-        # Only update if this ID is newer (higher) than the current since_id
-        if current_since_id is None or tweet_id_int > current_since_id:
-            logger.info(f"Updating since_id to {tweet_id_int} after successfully replying to tweet")
-            _write_since_id(tweet_id_int)
-        else:
-            logger.debug(f"Not updating since_id after reply - current ID {current_since_id} is newer than {tweet_id_int}")
-    except (ValueError, TypeError) as e:
-        logger.error(f"Error converting tweet ID {original_tweet_id} to int: {e}")
-    except Exception as e:
-        logger.error(f"Unexpected error updating since_id after reply: {e}", exc_info=True)
-
-# ============================================
 # MENTION LISTENING 
 # ============================================
 
-def listen_for_mentions(callback_on_mention: Callable):
+def listen_for_mentions(callback_on_mention: Callable, test_mode: bool = False):
     """
     Periodically polls for new mentions to the bot's authenticated user using Twitter API v2.
-    
-    Args:
-        callback_on_mention: A function to call for each new mention. 
-                             It will receive the Tweepy Tweet object (v2) as an argument.
     """
     if not api_v2:
-        logger.critical("listen_for_mentions: Twitter API v2 client not initialized. Cannot listen.")
         raise RuntimeError("Twitter API v2 client must be initialized before listening for mentions.")
 
     if not TWITTER_BOT_USERNAME:
-        logger.critical("listen_for_mentions: TWITTER_BOT_USERNAME is not set. Cannot determine which user to monitor.")
         raise RuntimeError("TWITTER_BOT_USERNAME is not configured.")
 
-    try:
-        logger.info("Attempting to retrieve bot's user ID for mention listening...")
-        bot_user_response = api_v2.get_me(user_fields=["id", "username"])
-        if not bot_user_response or not bot_user_response.data:
-            logger.error(f"Could not retrieve bot user information using get_me(). Response: {bot_user_response}")
-            raise RuntimeError("Failed to retrieve bot user ID. Cannot listen for mentions.")
-        
-        bot_user_id = bot_user_response.data.id
-        bot_username_from_api = bot_user_response.data.username
-        logger.info(f"Successfully fetched bot user details: ID={bot_user_id}, Username=@{bot_username_from_api}. This is the authenticated user.")
-
-        if TWITTER_BOT_USERNAME.lower() != bot_username_from_api.lower():
-            logger.warning(
-                f"TWITTER_BOT_USERNAME from .env ('{TWITTER_BOT_USERNAME}') does not match authenticated user from API ('{bot_username_from_api}'). "
-                f"Will listen for mentions to @{bot_username_from_api} (the authenticated user)."
-            )
-
-    except tweepy.TweepyException as e:
-        logger.critical(f"Tweepy error while getting bot user ID: {e}", exc_info=True)
-        raise RuntimeError(f"API error getting bot user ID: {e}")
-    except Exception as e:
-        logger.critical(f"Unexpected error getting bot user ID: {e}", exc_info=True)
-        raise RuntimeError(f"Unexpected error getting bot user ID: {e}")
-
-    # Initialize since_id: Try to read from file first.
-    last_processed_mention_id = _read_since_id()
-
-    if last_processed_mention_id is None:
-        logger.info(f"No valid since_id found in {SINCE_ID_FILE} or file doesn't exist. Fetching initial latest mention ID for @{bot_username_from_api} to set processing baseline...")
-        try:
-            initial_mentions_response = api_v2.get_users_mentions(
-                id=bot_user_id,
-                max_results=5,
-                tweet_fields=["author_id", "created_at", "conversation_id", "in_reply_to_user_id", "referenced_tweets"]
-            )
-            if initial_mentions_response.data and len(initial_mentions_response.data) > 0:
-                last_processed_mention_id = initial_mentions_response.data[0].id
-                logger.info(f"Initial baseline mention ID set to: {last_processed_mention_id} from Twitter API.")
-                _write_since_id(last_processed_mention_id)
-            elif initial_mentions_response.errors:
-                for error in initial_mentions_response.errors:
-                     logger.error(f"API error during initial mention fetch: {error.get('title', '')} - {error.get('detail', '')}")
-                logger.warning("Could not establish baseline due to API errors. Will fetch all new mentions on first poll if no since_id is loaded.")
-            else:
-                logger.info(f"No recent mentions found for @{bot_username_from_api}. Will process mentions from this point forward if no since_id is loaded.")
-        except tweepy.TweepyException as e:
-            logger.error(f"Tweepy error fetching initial mentions: {e}. Will proceed without an initial since_id if none was loaded from file.", exc_info=True)
-        except Exception as e:
-            logger.error(f"Unexpected error fetching initial mentions: {e}. Will proceed without an initial since_id if none was loaded from file.", exc_info=True)
-    else:
-        logger.info(f"Successfully loaded last_processed_mention_id {last_processed_mention_id} from {SINCE_ID_FILE}.")
-
-    logger.info(f"Starting to poll for mentions to @{bot_username_from_api} (ID: {bot_user_id}) every {MENTIONS_POLLING_INTERVAL_SECONDS} seconds...")
+    # Initialize mention listener
+    bot_user_id, bot_username = _initialize_mention_listener()
+    last_processed_mention_id = get_baseline_mention_id(api_v2)
     
-    # Brief pause before starting the loop
-    time.sleep(2)
-
-    while True:
-        logger.info(f"Mention polling cycle START for @{bot_username_from_api} (ID: {bot_user_id}). Since_id: {last_processed_mention_id}")
-        
-        # Check for shutdown request at the start of each cycle
-        if is_shutdown_requested():
-            logger.info("Shutdown requested. Stopping mention polling loop.")
-            break
-            
+    logger.info(f"Starting mention polling for @{bot_username}")
+    
+    # Main polling loop
+    while not is_shutdown_requested():
         try:
-            logger.info(f"Attempting to fetch mentions for user ID {bot_user_id} (since_id: {last_processed_mention_id})...")
-            
-            mentions_response = api_v2.get_users_mentions(
-                id=bot_user_id,
-                since_id=last_processed_mention_id,
-                tweet_fields=["author_id", "created_at", "text", "conversation_id", "in_reply_to_user_id", "referenced_tweets"],
-                expansions=["author_id"],
-                max_results=25
+            last_processed_mention_id = _process_mention_cycle(
+                bot_user_id, last_processed_mention_id, callback_on_mention
             )
-
-            if mentions_response.errors:
-                logger.info(f"Received errors from get_users_mentions API: {mentions_response.errors}")
-                for error in mentions_response.errors:
-                    logger.error(f"Twitter API error when fetching mentions: {error.get('title', '')} - {error.get('detail', '')} (Value: {error.get('value', '')})")
-
-            new_mentions_processed_this_cycle = 0
-            if mentions_response.data:
-                tweets_to_process = reversed(mentions_response.data)
-                logger.info(f"Found {len(mentions_response.data)} new mention(s) to process.")
-                
-                for tweet in tweets_to_process:
-                    if str(tweet.author_id) == str(bot_user_id):
-                        logger.info(f"Skipping mention from bot itself (Tweet ID: {tweet.id}, Author ID: {tweet.author_id}, Bot ID: {bot_user_id})")
-                        if tweet.id > (last_processed_mention_id or 0):
-                             last_processed_mention_id = tweet.id
-                        continue
-
-                    logger.info(f"Processing mention: Tweet ID {tweet.id}, Author ID {tweet.author_id}, Text: \"{tweet.text}\"")
-                    
-                    try:
-                        callback_on_mention(tweet)
-                        
-                        if tweet.id > (last_processed_mention_id or 0):
-                            last_processed_mention_id = tweet.id
-                        
-                        new_mentions_processed_this_cycle += 1
-                    except Exception as e:
-                        logger.error(f"Error processing mention (Tweet ID: {tweet.id}) with callback: {e}", exc_info=True)
-                        if tweet.id > (last_processed_mention_id or 0):
-                             last_processed_mention_id = tweet.id
-
-                if new_mentions_processed_this_cycle > 0:
-                    logger.info(f"Successfully processed {new_mentions_processed_this_cycle} new mention(s) in this cycle.")
-                    if last_processed_mention_id:
-                        _write_since_id(last_processed_mention_id)
-                else:
-                    if mentions_response.data:
-                        logger.info("No new, actionable mentions processed this cycle (e.g., all were self-mentions or skipped).")
-                        if last_processed_mention_id:
-                            _write_since_id(last_processed_mention_id)
-                    else:
-                         logger.info("No new mentions found in this polling cycle.")
-
-            else:
-                logger.info("No new mentions found in this polling cycle.")
-
-        except tweepy.TweepyException as e:
-            logger.error(f"Tweepy API error during mention polling loop: {e}", exc_info=True)
         except Exception as e:
-            logger.error(f"Unexpected error in mention polling loop: {e}", exc_info=True)
-            time.sleep(MENTIONS_POLLING_INTERVAL_SECONDS * 2)
+            logger.error(f"Error in mention polling: {e}")
         
-        logger.info(f"Mention polling cycle for @{bot_username_from_api} COMPLETE. Sleeping for {MENTIONS_POLLING_INTERVAL_SECONDS} seconds.")
+        _sleep_with_shutdown_check(MENTIONS_POLLING_INTERVAL_SECONDS, test_mode)
+    
+    logger.info("Mention listening stopped")
+
+def _initialize_mention_listener():
+    """Initialize mention listener and return bot user info."""
+    bot_info = get_bot_user_info(api_v2)
+    if not bot_info:
+        raise RuntimeError("Failed to retrieve bot user information")
+    
+    bot_user_id, bot_username = bot_info
+    
+    if TWITTER_BOT_USERNAME.lower() != bot_username.lower():
+        logger.warning(f"Username mismatch: env={TWITTER_BOT_USERNAME}, api={bot_username}")
+    
+    return bot_user_id, bot_username
+
+def _process_mention_cycle(bot_user_id, since_id, callback_on_mention):
+    """Process one mention polling cycle and return updated since_id."""
+    response = fetch_mentions(api_v2, bot_user_id, since_id)
+    if not response:
+        return since_id
+    
+    mentions, has_errors = parse_mention_response(response)
+    if has_errors:
+        logger.warning("API returned errors when fetching mentions")
+    
+    if not mentions:
+        return since_id
+    
+    return _process_mentions(mentions, bot_user_id, since_id, callback_on_mention)
+
+def _process_mentions(mentions, bot_user_id, since_id, callback_on_mention):
+    """Process a list of mentions and return updated since_id."""
+    updated_since_id = since_id
+    
+    for tweet in reversed(mentions):  # Process chronologically
+        if is_self_mention(tweet, bot_user_id):
+            updated_since_id = max(tweet.id, updated_since_id or 0)
+            continue
         
-        # Sleep in smaller intervals so we can respond to shutdown requests quickly
-        sleep_remaining = MENTIONS_POLLING_INTERVAL_SECONDS
-        while sleep_remaining > 0 and not is_shutdown_requested():
-            sleep_time = min(1, sleep_remaining)  # Sleep in 1-second intervals
+        try:
+            callback_on_mention(tweet)
+        except Exception as e:
+            logger.error(f"Error processing mention {tweet.id}: {e}")
+        
+        updated_since_id = max(tweet.id, updated_since_id or 0)
+    
+    return updated_since_id
+
+def _sleep_with_shutdown_check(seconds, test_mode=False):
+    """Sleep in small intervals to allow quick shutdown response, or wait for user input in test mode."""
+    if test_mode:
+        try:
+            print("\n🧪 Test mode: Press Enter to continue to next polling cycle (or Ctrl+C to stop)...")
+            input()
+        except KeyboardInterrupt:
+            # Convert KeyboardInterrupt to shutdown request
+            request_shutdown()
+        except EOFError:
+            # Handle case where input is closed (e.g., in automated tests)
+            logger.info("Input closed, treating as shutdown request")
+            request_shutdown()
+    else:
+        remaining = seconds
+        while remaining > 0 and not is_shutdown_requested():
+            sleep_time = min(1, remaining)
             time.sleep(sleep_time)
-            sleep_remaining -= sleep_time
-
-        if is_shutdown_requested():
-            logger.info("Shutdown requested. Stopping mention polling loop.")
-            break
-
-    logger.info("Mention listening loop has stopped.")
+            remaining -= sleep_time
 
 def get_baseline_mention_id(api_v2: tweepy.Client) -> Optional[str]:
     """
@@ -629,8 +496,7 @@ def post_reply_to_tweet(
         try:
             response = _attempt_tweet_post(api_v2, reply_params)
             if response:
-                # Update since_id after successful reply
-                update_since_id_after_reply(tweet_id)
+                # No need to update file-based since_id anymore - we keep it in memory only
                 return response
         except tweepy.TweepyException:
             if attempt < max_retries - 1:

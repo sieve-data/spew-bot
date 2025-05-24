@@ -53,13 +53,19 @@ Optional Environment Variables:
         help='Check bot status and exit (useful for debugging setup)'
     )
     
+    parser.add_argument(
+        '--test',
+        action='store_true',
+        help='Run in test mode - use manual input instead of timer for polling cycles'
+    )
+    
     args = parser.parse_args()
     
     try:
         print("🚀 Initializing CelebXplain Twitter Bot...")
         
         # Create and initialize the bot
-        bot = create_bot(personas_file_path=args.personas_file)
+        bot = create_bot(personas_file_path=args.personas_file, test_mode=args.test)
         
         if args.check_status:
             # Just check status and exit
@@ -73,6 +79,10 @@ Optional Environment Variables:
         # Start the bot (this blocks until shutdown)
         print("✅ Bot initialized successfully!")
         print("\n🎭 Available personas:", ", ".join(bot.get_status()["available_personas"]))
+        
+        if args.test:
+            print("\n🧪 TEST MODE ACTIVE - Press Enter to trigger polling cycles manually")
+        
         print("\n🔄 Starting mention listener...")
         print("📝 Bot is now listening for mentions. Press Ctrl+C to stop.\n")
         

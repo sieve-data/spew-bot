@@ -26,14 +26,16 @@ class TwitterBot:
     Handles initialization, startup, and graceful shutdown.
     """
     
-    def __init__(self, personas_file_path: str = None):
+    def __init__(self, personas_file_path: str = None, test_mode: bool = False):
         """
         Initialize the Twitter bot with all required components.
         
         Args:
             personas_file_path: Optional path to personas.json file
+            test_mode: If True, use manual input instead of timer for polling
         """
         self.personas_file_path = personas_file_path
+        self.test_mode = test_mode
         self.api_v1: Optional[twitter_client.tweepy.API] = None
         self.api_v2: Optional[twitter_client.tweepy.Client] = None
         self.is_running = False
@@ -140,7 +142,10 @@ class TwitterBot:
         
         try:
             # Start the mention listening loop - this blocks until shutdown
-            twitter_client.listen_for_mentions(callback_on_mention=action_handler.handle_mention)
+            twitter_client.listen_for_mentions(
+                callback_on_mention=action_handler.handle_mention,
+                test_mode=self.test_mode
+            )
             
         except KeyboardInterrupt:
             logger.info("Received keyboard interrupt, shutting down...")
@@ -183,12 +188,13 @@ class TwitterBot:
             "available_personas": action_handler.get_available_personas()
         }
 
-def create_bot(personas_file_path: str = None) -> TwitterBot:
+def create_bot(personas_file_path: str = None, test_mode: bool = False) -> TwitterBot:
     """
     Factory function to create and initialize a TwitterBot instance.
     
     Args:
         personas_file_path: Optional path to personas.json file
+        test_mode: If True, use manual input instead of timer for polling
         
     Returns:
         Initialized TwitterBot instance
@@ -196,7 +202,7 @@ def create_bot(personas_file_path: str = None) -> TwitterBot:
     Raises:
         RuntimeError: If initialization fails
     """
-    bot = TwitterBot(personas_file_path)
+    bot = TwitterBot(personas_file_path, test_mode)
     
     if not bot.initialize():
         raise RuntimeError("Failed to initialize TwitterBot")
