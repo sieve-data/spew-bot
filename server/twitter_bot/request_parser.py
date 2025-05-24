@@ -85,16 +85,16 @@ def parse_tweet(tweet_text: str, personas_data: dict) -> Tuple[Optional[str], Op
         
         # Create system prompt with supported persona IDs for better extraction
         system_prompt = f"""You are an expert tweet analyst.
-Your task is to identify two key pieces of information from a user's tweet:
-1. The main **topic** or question the user wants explained.
-2. The **persona_id** that the user wants to use for the explanation.
+            Your task is to identify two key pieces of information from a user's tweet:
+            1. The main **topic** or question the user wants explained.
+            2. The **persona_id** that the user wants to use for the explanation.
 
-Supported persona IDs include: {', '.join(supported_persona_ids)}
+            Supported persona IDs include: {', '.join(supported_persona_ids)}
 
-If the user doesn't explicitly mention a persona ID, or if the persona ID is not clearly identifiable, return null for `persona_id`.
-The topic should be a concise summary of what needs to be explained.
-The persona_id should be extracted exactly as mentioned in the tweet.
-Do not infer a persona_id if not mentioned."""
+            If the user doesn't explicitly mention a persona ID, or if the persona ID is not clearly identifiable, return null for `persona_id`.
+            The topic should be a concise summary of what needs to be explained.
+            The persona_id should be extracted exactly as mentioned in the tweet.
+            Do not infer a persona_id if not mentioned, but adjust for spelling mistakes and other variations."""
 
         user_prompt = f"Here's the tweet: \"{tweet_text}\""
 
