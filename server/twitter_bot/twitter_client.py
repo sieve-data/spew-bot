@@ -4,6 +4,7 @@ import tweepy
 import logging
 from typing import Optional, Tuple, Dict, Any, Callable
 from dotenv import load_dotenv
+import action_handler
 
 # Load environment variables
 load_dotenv()
@@ -189,14 +190,11 @@ def listen_for_mentions(callback_on_mention: Callable, test_mode: bool = False):
             
             # Check for completed video generation jobs
             try:
-                # Import here to avoid circular imports
-                from . import action_handler
+                logger.info("🎬 Checking for completed video generation jobs...")
                 action_handler.check_completed_jobs()
-            except ImportError:
-                # Handle case where action_handler might not be available
-                pass
+                logger.info("✅ Completed job check finished")
             except Exception as e:
-                logger.error(f"Error checking completed jobs: {e}")
+                logger.error(f"❌ Error checking completed jobs: {e}", exc_info=True)
             
         except Exception as e:
             logger.error(f"Error in polling cycle: {e}")
@@ -468,13 +466,21 @@ def is_retryable_twitter_error(error: Exception) -> bool:
 def _attempt_tweet_post(api_v2: tweepy.Client, tweet_params: dict) -> Optional[tweepy.Response]:
     """Simple tweet posting without retry logic."""
     try:
+        logger.info(f"🐦 Attempting to post tweet with params: {tweet_params}")
         response = api_v2.create_tweet(**tweet_params)
         if response.data and response.data.get("id"):
+            logger.info(f"✅ Tweet posted successfully! ID: {response.data.get('id')}")
             return response
-        return None
-    except tweepy.TweepyException as e:
-        if not is_retryable_twitter_error(e):
+        else:
+            logger.error(f"❌ Twitter API response missing data or ID: {response}")
             return None
+    except tweepy.TweepyException as e:
+        logger.error(f"❌ TWITTER API EXCEPTION: {e}")
+        logger.error(f"❌ Exception details: {e.response.text if hasattr(e, 'response') and e.response else 'No response details'}")
+        if not is_retryable_twitter_error(e):
+            logger.error(f"❌ Error is NOT retryable, returning None")
+            return None
+        logger.info(f"⚠️ Error is retryable, re-raising for retry logic")
         raise  # Re-raise for retry logic
 
 def post_reply_to_tweet(
