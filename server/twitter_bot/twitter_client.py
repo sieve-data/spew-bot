@@ -165,6 +165,7 @@ def _init_v2_client(api_key: str, api_key_secret: str, access_token: str, access
 def listen_for_mentions(callback_on_mention: Callable, test_mode: bool = False):
     """
     Periodically polls for new mentions to the bot's authenticated user using Twitter API v2.
+    Also checks for completed video generation jobs.
     """
     if not api_v2:
         raise RuntimeError("Twitter API v2 client must be initialized before listening for mentions.")
@@ -181,11 +182,24 @@ def listen_for_mentions(callback_on_mention: Callable, test_mode: bool = False):
     # Main polling loop
     while not is_shutdown_requested():
         try:
+            # Check for new mentions
             last_processed_mention_id = _process_mention_cycle(
                 bot_user_id, last_processed_mention_id, callback_on_mention
             )
+            
+            # Check for completed video generation jobs
+            try:
+                # Import here to avoid circular imports
+                from . import action_handler
+                action_handler.check_completed_jobs()
+            except ImportError:
+                # Handle case where action_handler might not be available
+                pass
+            except Exception as e:
+                logger.error(f"Error checking completed jobs: {e}")
+            
         except Exception as e:
-            logger.error(f"Error in mention polling: {e}")
+            logger.error(f"Error in polling cycle: {e}")
         
         _sleep_with_shutdown_check(MENTIONS_POLLING_INTERVAL_SECONDS, test_mode)
     

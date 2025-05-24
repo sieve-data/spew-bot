@@ -10,19 +10,16 @@ class SpewOrchestrator:
     Coordinates all Sieve functions to create educational videos.
     """
     
-    def __init__(self, personas_file_path: str = None):
+    def __init__(self, persona_data: Dict, base_video_file: sieve.File):
         """
-        Initialize the orchestrator with personas data.
+        Initialize the orchestrator with persona data and base video file.
         
         Args:
-            personas_file_path: Path to personas.json file. If None, uses default path.
+            persona_data: Dictionary containing persona information
+            base_video_file: sieve.File object for the base video
         """
-        if personas_file_path is None:
-            # Default path relative to this file
-            current_dir = Path(__file__).parent
-            personas_file_path = current_dir.parent / "data" / "personas.json"
-        
-        self.personas = self._load_personas(personas_file_path)
+        self.persona_data = persona_data
+        self.base_video_file = base_video_file
         
         # Get Sieve functions
         self.script_generator = sieve.function.get("sieve-internal/spew_script_generator")
@@ -31,38 +28,18 @@ class SpewOrchestrator:
         self.lipsync_processor = sieve.function.get("sieve-internal/spew_lipsync_processor")
         self.video_assembler = sieve.function.get("sieve-internal/spew_video_assembler")
         
-    def _load_personas(self, personas_path: Path) -> Dict:
-        """Load and index personas data for efficient lookup"""
-        try:
-            with open(personas_path, 'r') as f:
-                personas_data = json.load(f)
-                return {
-                    persona["id"]: persona 
-                    for persona in personas_data["personas"]
-                }
-        except FileNotFoundError:
-            raise FileNotFoundError(f"personas.json not found at {personas_path}")
-        except json.JSONDecodeError:
-            raise ValueError(f"personas.json at {personas_path} is not valid JSON")
-    
-    def generate_video(self, persona_id: str, query: str) -> sieve.File:
+    def generate_video(self, query: str) -> sieve.File:
         """
         Generate a complete educational video using the specified persona and query.
         
         Args:
-            persona_id: ID of the persona to use (must exist in personas.json)
             query: Educational topic/question to explain
             
         Returns:
             sieve.File: The final assembled video file
         """
-        print(f"🚀 Starting video generation for persona '{persona_id}' with query: '{query}'")
-        
-        # Validate persona exists
-        if persona_id not in self.personas:
-            raise ValueError(f"Persona '{persona_id}' not found. Available personas: {list(self.personas.keys())}")
-        
-        persona = self.personas[persona_id]
+        persona = self.persona_data
+        print(f"🚀 Starting video generation for persona '{persona['name']}' with query: '{query}'")
         
         # Step 1: Generate script
         print("\n📝 Step 1: Generating script...")
@@ -71,15 +48,6 @@ class SpewOrchestrator:
             name=persona["name"],
             style=persona["style_prompt"]
         )
-        # script_result = """
-        # Hey dolls! Today we're diving deep into blockchain technology, which is like, way more complex than my marriage to Kris Humphries - and that's saying something!
-
-        # So technically, a blockchain is a distributed ledger that maintains an ever-growing list of records called blocks, each cryptographically linked to the previous one using a hash function. 
-        
-        # Each block contains three crucial elements: transaction data, a timestamp, and the cryptographic hash of the previous block, creating an immutable chain of information.
-
-        # Miners do some complex math to verify the transactions and add them to the blockchain.
-        # """
 
         print(f"✅ Script generated ({len(script_result)} characters)")
         
@@ -103,7 +71,7 @@ class SpewOrchestrator:
         
         print("🎬 Starting lipsync processing...")
         lipsync_future = self._process_lipsync_async(
-            persona_id=persona_id,
+            persona_id=persona["id"],
             audio_file=speech_result["audio_file"]
         )
         
@@ -171,27 +139,11 @@ class SpewOrchestrator:
     
     def _process_lipsync_async(self, persona_id: str, audio_file: sieve.File):
         """Start lipsync processing asynchronously using push()"""
-        persona = self.personas[persona_id]
-        video_path_str = persona.get("video_path")
-        
-        if not video_path_str:
-            raise ValueError(f"No video_path found for persona {persona_id}")
-        
-        # Construct the absolute path to the video file
-        current_dir = Path(__file__).parent
-        absolute_video_path = current_dir.parent / video_path_str
-        
-        if not absolute_video_path.exists():
-            raise FileNotFoundError(f"Video file not found: {absolute_video_path}")
-        
-        # Create a sieve.File object from the local video path
-        input_video_file = sieve.File(path=str(absolute_video_path))
-        
-        # Use push() for async processing
+        # Use the base video file that was passed in during initialization
         return self.lipsync_processor.push(
             persona_id=persona_id,
             generated_audio=audio_file,
-            base_video_file=input_video_file
+            base_video_file=self.base_video_file
         )
     
     def _assemble_final_video(self, celebrity_video: sieve.File, visuals_video: sieve.File) -> sieve.File:
@@ -207,17 +159,20 @@ class SpewOrchestrator:
         return result
 
 
-def create_video(persona_id: str, query: str, personas_file_path: str = None) -> sieve.File:
+@sieve.function(
+    name="spew_complete_video_generator",
+)
+def create_video(persona_data: dict, base_video_file: sieve.File, query: str) -> sieve.File:
     """
     Convenience function to generate a video with the specified persona and query.
     
     Args:
-        persona_id: ID of the persona to use
+        persona_data: Dictionary containing persona information (name, style_prompt, tts_voice_link, etc.)
+        base_video_file: sieve.File object for the base video to use for lipsync
         query: Educational topic/question to explain
-        personas_file_path: Optional path to personas.json file
         
     Returns:
         sieve.File: The final assembled video file
     """
-    orchestrator = SpewOrchestrator(personas_file_path)
-    return orchestrator.generate_video(persona_id, query)
+    orchestrator = SpewOrchestrator(persona_data, base_video_file)
+    return orchestrator.generate_video(query)

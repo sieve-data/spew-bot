@@ -9,7 +9,7 @@ from pathlib import Path
 # Import the orchestrator
 import sys
 sys.path.append(str(Path(__file__).parent.parent / 'sieve_functions'))
-from orchestrator import create_video
+# Note: We no longer import create_video directly since it's now a Sieve function
 
 # Load environment variables from .env file if present
 load_dotenv()
@@ -46,17 +46,31 @@ class TestSpewPipeline(unittest.TestCase):
         
         print("🚀 Starting complete Spew pipeline test using orchestrator...")
         
-        # Get persona data for validation
-        persona = self.personas[PERSONA_ID]
-        print(f"🎭 Using persona: {persona['name']}")
+        # Get persona data for the test
+        if PERSONA_ID not in self.personas:
+            raise ValueError(f"Persona '{PERSONA_ID}' not found. Available personas: {list(self.personas.keys())}")
+        
+        persona_data = self.personas[PERSONA_ID]
+        print(f"🎭 Using persona: {persona_data['name']}")
         print(f"📝 Query: {QUERY}")
+        
+        # Load the base video file for this persona
+        base_video_path = PROJECT_ROOT / 'server' / persona_data['video_path']
+        if not base_video_path.exists():
+            raise FileNotFoundError(f"Base video not found: {base_video_path}")
+        
+        base_video_file = sieve.File(path=str(base_video_path))
+        print(f"📹 Loaded base video: {base_video_path}")
         
         # Use the orchestrator to generate the complete video
         print("\n🎬 Generating complete video using orchestrator...")
-        final_video_result = create_video(
-            persona_id=PERSONA_ID,
-            query=QUERY,
-            personas_file_path=str(PROJECT_ROOT / 'server' / 'data' / 'personas.json')
+        
+        # Get the Sieve function and call it with persona data and base video
+        video_generator = sieve.function.get("sieve-internal/spew_complete_video_generator")
+        final_video_result = video_generator.run(
+            persona_data=persona_data,
+            base_video_file=base_video_file,
+            query=QUERY
         )
         
         # Verify and download the final video

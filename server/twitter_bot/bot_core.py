@@ -130,7 +130,7 @@ class TwitterBot:
             logger.critical("Cannot start bot - Twitter clients not initialized")
             return
             
-        if not action_handler.orchestrator:
+        if not action_handler.personas_data:
             logger.critical("Cannot start bot - Action handler not initialized")
             return
             
@@ -179,14 +179,21 @@ class TwitterBot:
         Returns:
             Dictionary with bot status information
         """
-        return {
+        status = {
             "is_running": self.is_running,
             "bot_username": self.bot_username,
             "twitter_v1_initialized": self.api_v1 is not None,
             "twitter_v2_initialized": self.api_v2 is not None,
-            "action_handler_initialized": action_handler.orchestrator is not None,
-            "available_personas": action_handler.get_available_personas()
+            "action_handler_initialized": action_handler.personas_data is not None,
+            "available_personas": action_handler.get_available_personas(),
+            "pending_jobs_count": action_handler.get_pending_jobs_count(),
         }
+        
+        # Add detailed job info if there are pending jobs
+        if action_handler.get_pending_jobs_count() > 0:
+            status["pending_jobs"] = action_handler.get_pending_jobs_info()
+        
+        return status
 
 def create_bot(personas_file_path: str = None, test_mode: bool = False) -> TwitterBot:
     """
