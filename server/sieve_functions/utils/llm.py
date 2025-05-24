@@ -74,7 +74,8 @@ def _call_claude(
         # Build the request parameters
         request_params = {
             "model": current_model,
-            "messages": [{"role": "user", "content": prompt}]
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 1024
         }
         
         # Only add system parameter if system_prompt is provided
