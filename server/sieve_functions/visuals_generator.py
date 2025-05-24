@@ -108,6 +108,8 @@ def _generate_animation_code(description: str, duration: float, llm_provider: st
         - Use colors that pop against dark background (blues, oranges, whites, greens)
         - Avoid clutter - emphasize the core mathematical concept
 
+        You are an expert in Python programming and Matplotlib animations. You create beautiful, mathematical visualizations in the style of 3Blue1Brown. Your code is always complete, self-contained, and production-ready.
+
         Return ONLY the complete Python code with no markdown formatting or additional explanations.
         """
 
@@ -182,6 +184,12 @@ def _fix_animation_code(original_code: str, error_message: str, original_descrip
         - Handle edge cases and potential runtime errors
         - Use figsize=(10.8, 10.8) for mobile-friendly square video dimensions (1080x1080)
         - Code must be complete and self-contained
+        
+        COMMON ERROR FIXES:
+        - Always properly close string literals and avoid incomplete quotes
+        - Use simple text instead of LaTeX commands (avoid \\text{{}} - use plain strings)
+        - Ensure all variables (especially 'anim') are properly defined before use
+        - Double-check all parentheses, brackets, and indentation are correct
 
         STYLE REQUIREMENTS:
         - Clean, minimalist 3Blue1Brown aesthetic
@@ -252,7 +260,7 @@ def _create_visual_plan(transcription: dict) -> VisualPlan:
         Aim for more animations than images.
         Please ensure that your designs are clear, simple, and help convey mathematical ideas without unnecessary complexity. Our goal is to make the concepts accessible and easy to understand.
 
-        The first segment should **always** be an animation.
+        The first segment should **always be an animation.
         """
 
     try:
