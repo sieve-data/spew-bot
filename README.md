@@ -139,7 +139,7 @@ MENTIONS_POLLING_INTERVAL_SECONDS=1,200
 
 #### 3. **Sieve Account Setup**
 
-1. **Create Sieve Account**: Sign up at [sieve.cloud](https://sieve.cloud)
+1. **Create Sieve Account**: Sign up at [sievedata.com](https://sievedata.com).
 
 2. **Set Environment Variables in Sieve**:
    Add all the API keys to your Sieve environment variables dashboard:
