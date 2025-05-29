@@ -56,7 +56,7 @@ sseclient==0.0.27
 tqdm==4.67.1
 tweepy==4.14.0
 typeguard==4.4.2
-typer==0.15.4
+typer==0.16.0
 typing-inspection==0.4.1
 typing_extensions==4.13.2
 urllib3==2.4.0
